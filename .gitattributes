@@ -1,0 +1,2 @@
+# Preserve the exact validated source and native-log bytes on every platform.
+* -text
