@@ -6,7 +6,7 @@ The result gives one fixed finite-alphabet multi-stack Turing machine that count
 
 The input is the explicit normalized preference-rank bit string, and the output is exactly `Nat.bits (Nat.card mkt.StableMatching)`. Preferences are strict orders over partners and the outside option. Complete strict preference lists are included. This development does not claim the partner-constraint, rank-histogram, rank-balanced optimization, or sampling extensions.
 
-The development imports the actual `MainResults.mainTheorem` through the `Solution` proof. The reported axiom checks for the final theorem use only Lean's standard axioms `propext`, `Classical.choice`, and `Quot.sound`. The bridge check is [`axiom_audit.lean`](anthropic_bridge/axiom_audit.lean). A clean reproduction from this public layout is **pending**; the commands below describe the intended reproduction.
+The development imports the actual `MainResults.mainTheorem` through the `Solution` proof. The original full builds passed, and the final theorem's printed axiom dependencies are exactly Lean's standard axioms `propext`, `Classical.choice`, and `Quot.sound`. Native logs and source hashes are in [`validation/`](validation/). The bridge check is [`axiom_audit.lean`](anthropic_bridge/axiom_audit.lean). A separate clean reproduction of the identical proof sources is **running**; no clean-reproduction success is claimed yet.
 
 ## Contents
 
