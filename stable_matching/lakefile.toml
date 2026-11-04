@@ -1,0 +1,16 @@
+name = "StableMatching"
+defaultTargets = ["StableMatching"]
+
+[leanOptions]
+autoImplicit = false
+
+[[require]]
+name = "matheconlib"
+path = "../external/matheconlib"
+
+[[require]]
+name = "anthropic_bridge"
+path = "../anthropic_bridge"
+
+[[lean_lib]]
+name = "StableMatching"

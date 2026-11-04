@@ -1,0 +1,3538 @@
+diff --git a/MathEconLib.lean b/MathEconLib.lean
+index a99e191097f31632ab18f82c5c779b1479e71812..3d9acac2acecf99fe13acfdb1303651b83d86da8 100644
+--- a/MathEconLib.lean
++++ b/MathEconLib.lean
+@@ -73,16 +73,32 @@ public import MathEconLib.GameTheory.Strategic.Outcome
+ public import MathEconLib.Matching
+ public import MathEconLib.Matching.Classical.Marriage
+ public import MathEconLib.Matching.Classical.Marriage.Basic
++public import MathEconLib.Matching.Classical.Marriage.ComputedPoset
++public import MathEconLib.Matching.Classical.Marriage.ComputedChains
++public import MathEconLib.Matching.Classical.Marriage.ComputedRows
++public import MathEconLib.Matching.Classical.Marriage.ComputedBlocks
++public import MathEconLib.Matching.Classical.Marriage.CountingBounds
++public import MathEconLib.Matching.Classical.Marriage.RankInput
++public import MathEconLib.Matching.Classical.Marriage.RankChoice
++public import MathEconLib.Matching.Classical.Marriage.RankInputTruncation
++public import MathEconLib.Matching.Classical.Marriage.RankRepresentation
+ public import MathEconLib.Matching.Classical.Marriage.DeferredAcceptance
+ public import MathEconLib.Matching.Classical.Marriage.DeferredAcceptanceComputable
+ public import MathEconLib.Matching.Classical.Marriage.DeferredAcceptanceFixedPoints
++public import MathEconLib.Matching.Classical.Marriage.Distributive
+ public import MathEconLib.Matching.Classical.Marriage.Existence
+ public import MathEconLib.Matching.Classical.Marriage.FixedPointConvergence
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleChains
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleCentrality
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleComputation
+ public import MathEconLib.Matching.Classical.Marriage.LoneWolf
+ public import MathEconLib.Matching.Classical.Marriage.Optimality
++public import MathEconLib.Matching.Classical.Marriage.OrderIdeals
+ public import MathEconLib.Matching.Classical.Marriage.Preferences
+ public import MathEconLib.Matching.Classical.Marriage.StableOrder
++public import MathEconLib.Matching.Classical.Marriage.ThresholdComputation
+ public import MathEconLib.Matching.Classical.Marriage.ToContracts
++public import MathEconLib.Matching.Classical.Marriage.Truncation
+ public import MathEconLib.Matching.Contracts.Basic
+ public import MathEconLib.Matching.Contracts.Completion
+ public import MathEconLib.Matching.Contracts.FixedPointConvergence
+diff --git a/MathEconLib/ForMathlib/Data/List/BoundedChunks.lean b/MathEconLib/ForMathlib/Data/List/BoundedChunks.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..a9cb7a0a936950ea2b39307686355eb107a5382b
+--- /dev/null
++++ b/MathEconLib/ForMathlib/Data/List/BoundedChunks.lean
+@@ -0,0 +1,84 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import Mathlib.Data.List.SplitLengths
++public import Init.Data.List.Sublist
++public import Mathlib.Tactic.Linarith
++
++/-! Executable nonempty chunks of bounded length, using `List.splitLengths`. -/
++
++@[expose] public section
++
++namespace MathEconLib.ListChunks
++
++variable {α : Type*}
++
++/-- Split into at most `length / D + 1` blocks, discarding empty blocks. -/
++def chunks (D : Nat) (input : List α) : List (List α) :=
++  ((List.replicate (input.length / D + 1) D).splitLengths input).filter
++    (fun block => !block.isEmpty)
++
++theorem flatten_nonempty_filter (blocks : List (List α)) :
++    (blocks.filter (fun block => !block.isEmpty)).flatten = blocks.flatten := by
++  induction blocks with
++  | nil => rfl
++  | cons block blocks ih =>
++      cases block <;> simp [ih]
++
++theorem flatten_chunks (D : Nat) (hD : 0 < D) (input : List α) :
++    (chunks D input).flatten = input := by
++  unfold chunks
++  rw [flatten_nonempty_filter]
++  apply List.flatten_splitLengths
++  have hcover : input.length ≤ (input.length / D + 1) * D := by
++    have hmod := Nat.mod_lt input.length hD
++    have hdecomp := Nat.mod_add_div input.length D
++    nlinarith
++  simpa using hcover
++
++theorem nonempty_of_mem {D : Nat} {input : List α} {block : List α}
++    (h : block ∈ chunks D input) : block ≠ [] := by
++  have hn := (List.mem_filter.mp h).2
++  intro he
++  simp [he] at hn
++
++theorem length_le_of_mem {D : Nat} {input : List α} {block : List α}
++    (h : block ∈ chunks D input) : block.length ≤ D := by
++  have hraw := (List.mem_filter.mp h).1
++  exact List.length_mem_splitLengths input (List.replicate (input.length / D + 1) D) D
++    (by intro k hk; simp only [List.mem_replicate] at hk; omega) block hraw
++
++theorem splitLengths_sublist (sizes : List Nat) (input block : List α)
++    (h : block ∈ sizes.splitLengths input) : block.Sublist input := by
++  induction sizes generalizing input with
++  | nil => simp at h
++  | cons size sizes ih =>
++      simp only [List.splitLengths_cons, List.mem_cons] at h
++      rcases h with rfl | h
++      · exact List.take_sublist _ _
++      · exact (ih (input.drop size) h).trans (List.drop_sublist _ _)
++
++theorem sublist_of_mem {D : Nat} {input : List α} {block : List α}
++    (h : block ∈ chunks D input) : block.Sublist input :=
++  splitLengths_sublist _ _ _ (List.mem_filter.mp h).1
++
++theorem count_le (D : Nat) (input : List α) :
++    (chunks D input).length ≤ input.length / D + 1 := by
++  have h := List.length_filter_le (fun block : List α => !block.isEmpty)
++    ((List.replicate (input.length / D + 1) D).splitLengths input)
++  simpa only [chunks, List.length_splitLengths, List.length_replicate] using h
++
++/-- A division-free bound convenient for summing over a family of rows. -/
++theorem count_mul_le (D : Nat) (input : List α) :
++    (chunks D input).length * D ≤ input.length + D := by
++  calc
++    (chunks D input).length * D ≤ (input.length / D + 1) * D :=
++      Nat.mul_le_mul_right D (count_le D input)
++    _ = input.length / D * D + D := by simp only [Nat.add_mul, Nat.one_mul]
++    _ ≤ input.length + D := Nat.add_le_add_right (Nat.div_mul_le_self _ _) _
++
++end MathEconLib.ListChunks
+diff --git a/MathEconLib/ForMathlib/Order/ThinChains.lean b/MathEconLib/ForMathlib/Order/ThinChains.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..da3ae7c4c984b989df78da74d30f2f0533bed7e9
+--- /dev/null
++++ b/MathEconLib/ForMathlib/Order/ThinChains.lean
+@@ -0,0 +1,155 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import Mathlib.Order.Preorder.Finite
++public import Mathlib.Data.Fintype.Card
++public import Mathlib.Data.Fintype.Prod
++public import Mathlib.Data.Finset.Card
++public import Mathlib.SetTheory.Cardinal.NatCard
++
++/-!
++# Thin double chain partitions
++
++A finite poset has two indexed chain partitions whose common cells contain
++at most one point. The first counting lemmas are the row-column injection and
++the disjointness of column prefixes within each row.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Order
++
++universe u v w
++
++/-- Two partitions into chains, with at most one element in a row-column cell. -/
++structure ThinChains (P : Type u) (R : Type v) (C : Type w)
++    [PartialOrder P] where
++  row : P → R
++  col : P → C
++  label_injective : Function.Injective (fun x => (row x, col x))
++  row_comparable : ∀ x y, row x = row y → x ≤ y ∨ y ≤ x
++  col_comparable : ∀ x y, col x = col y → x ≤ y ∨ y ≤ x
++
++namespace ThinChains
++
++variable {P : Type u} {R : Type v} {C : Type w}
++variable [PartialOrder P] [Fintype P] [Fintype R] [Fintype C]
++variable (t : ThinChains P R C)
++
++theorem card_le_rows_mul_cols (t : ThinChains P R C) :
++    Fintype.card P ≤ Fintype.card R * Fintype.card C := by
++  simpa only [Fintype.card_prod] using
++    Fintype.card_le_of_injective (fun x : P => (t.row x, t.col x)) t.label_injective
++
++/-- The fibre of one row. -/
++noncomputable def rowFiber (t : ThinChains P R C) (r : R) : Finset P := by
++  classical
++  exact Finset.univ.filter fun x => t.row x = r
++
++/-- The inclusive prefix in `x`'s column. -/
++noncomputable def colPrefix (t : ThinChains P R C) (x : P) : Finset P := by
++  classical
++  exact Finset.univ.filter fun y => t.col y = t.col x ∧ y ≤ x
++
++/-- The inclusive downset of a point. -/
++noncomputable def downset (t : ThinChains P R C) (x : P) : Finset P := by
++  classical
++  exact Finset.univ.filter fun y => y ≤ x
++
++/-- The inclusive upset of a point. -/
++noncomputable def upset (t : ThinChains P R C) (x : P) : Finset P := by
++  classical
++  exact Finset.univ.filter fun y => x ≤ y
++
++@[simp] theorem mem_rowFiber {r : R} {x : P} :
++    x ∈ t.rowFiber r ↔ t.row x = r := by
++  simp [rowFiber]
++
++@[simp] theorem mem_colPrefix {x y : P} :
++    y ∈ t.colPrefix x ↔ t.col y = t.col x ∧ y ≤ x := by
++  simp [colPrefix]
++
++@[simp] theorem mem_downset {x y : P} :
++    y ∈ t.downset x ↔ y ≤ x := by
++  simp [downset]
++
++@[simp] theorem mem_upset {x y : P} :
++    y ∈ t.upset x ↔ x ≤ y := by
++  simp [upset]
++
++/-- A nonempty row has a largest element in the ambient order. -/
++theorem exists_row_greatest {r : R} (hr : (t.rowFiber r).Nonempty) :
++    ∃ v ∈ t.rowFiber r, ∀ x ∈ t.rowFiber r, x ≤ v := by
++  obtain ⟨v, hv⟩ := (t.rowFiber r).exists_maximal hr
++  refine ⟨v, hv.1, ?_⟩
++  intro x hx
++  have hxrow : t.row x = t.row v := by
++    exact (t.mem_rowFiber.mp hx).trans (t.mem_rowFiber.mp hv.1).symm
++  rcases t.row_comparable x v hxrow with hxv | hvx
++  · exact hxv
++  · exact hv.2 hx hvx
++
++/-- Two distinct points of one row occupy different columns. -/
++theorem col_ne_of_row_eq {x x' : P} (hrow : t.row x = t.row x')
++    (hne : x ≠ x') : t.col x ≠ t.col x' := by
++  intro hcol
++  exact hne (t.label_injective (Prod.ext hrow hcol))
++
++/-- Column prefixes of distinct elements of a row are disjoint. -/
++theorem colPrefix_disjoint_of_row_eq {x x' : P}
++    (hrow : t.row x = t.row x') (hne : x ≠ x') :
++    Disjoint (t.colPrefix x) (t.colPrefix x') := by
++  apply Finset.disjoint_left.mpr
++  intro y hy hy'
++  have hcol : t.col x = t.col x' :=
++    (t.mem_colPrefix.mp hy).1.symm.trans (t.mem_colPrefix.mp hy').1
++  exact t.col_ne_of_row_eq hrow hne hcol
++
++/-- A column prefix below a row element lies below that row's greatest point. -/
++theorem colPrefix_subset_downset_of_le {x v : P} (hxv : x ≤ v) :
++    t.colPrefix x ⊆ t.downset v := by
++  intro y hy
++  exact t.mem_downset.mpr ((t.mem_colPrefix.mp hy).2.trans hxv)
++
++/-- A point of a row together with an element of its column prefix. -/
++def RowPrefixPair (r : R) :=
++  {p : P × P // t.row p.1 = r ∧ t.col p.2 = t.col p.1 ∧ p.2 ≤ p.1}
++
++/-- Prefix pairs in one row inject into the downset of its greatest point.
++The second coordinate alone is injective because different row points have
++different columns. -/
++theorem rowPrefixPairs_card_le_downset {r : R}
++    (hr : (t.rowFiber r).Nonempty) :
++    ∃ v ∈ t.rowFiber r,
++      Nat.card (t.RowPrefixPair r) ≤ Nat.card {y : P // y ≤ v} := by
++  classical
++  obtain ⟨v, hv, hgreatest⟩ := t.exists_row_greatest hr
++  let f : t.RowPrefixPair r → {y : P // y ≤ v} := fun p =>
++    ⟨p.1.2, (p.2.2.2).trans
++      (hgreatest p.1.1 (t.mem_rowFiber.mpr p.2.1))⟩
++  have hinj : Function.Injective f := by
++    intro p q hpq
++    have hy : p.1.2 = q.1.2 := congrArg Subtype.val hpq
++    have hrow : t.row p.1.1 = t.row q.1.1 := p.2.1.trans q.2.1.symm
++    have hcol : t.col p.1.1 = t.col q.1.1 := by
++      calc
++        t.col p.1.1 = t.col p.1.2 := p.2.2.1.symm
++        _ = t.col q.1.2 := congrArg t.col hy
++        _ = t.col q.1.1 := q.2.2.1
++    have hx : p.1.1 = q.1.1 := t.label_injective (Prod.ext hrow hcol)
++    apply Subtype.ext
++    exact Prod.ext hx hy
++  letI : Fintype (t.RowPrefixPair r) := by
++    change Fintype
++      {p : P × P // t.row p.1 = r ∧ t.col p.2 = t.col p.1 ∧ p.2 ≤ p.1}
++    infer_instance
++  exact ⟨v, hv, by
++    simpa only [Nat.card_eq_fintype_card] using
++      (Fintype.card_le_of_injective f hinj)⟩
++
++end ThinChains
++end MathEconLib.Order
+diff --git a/MathEconLib/ForMathlib/Order/ThinChains/Centrality.lean b/MathEconLib/ForMathlib/Order/ThinChains/Centrality.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..ab9ccd9fa758e3cb3eca1963cdf82cb7716dfecd
+--- /dev/null
++++ b/MathEconLib/ForMathlib/Order/ThinChains/Centrality.lean
+@@ -0,0 +1,273 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.ForMathlib.Order.ThinChains
++public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
++public import Mathlib.Algebra.Order.Chebyshev
++public import Mathlib.Algebra.Order.BigOperators.Group.Finset
++public import Mathlib.Algebra.BigOperators.Ring.Finset
++
++/-!
++# Counting in thin double chain posets
++
++The ordered pairs in column prefixes are counted twice: by row, where they
++inject into a row maximum's downset, and by column, where their number is
++quadratic in the column sizes.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Order
++namespace ThinChains
++
++variable {P R C : Type*} [PartialOrder P] [Fintype P] [Fintype R] [Fintype C]
++variable (t : ThinChains P R C)
++
++/-- All comparable pairs inside a column, oriented downwards. -/
++noncomputable def allPrefixPairs : Finset (P × P) := by
++  classical
++  exact Finset.univ.filter fun p => t.col p.2 = t.col p.1 ∧ p.2 ≤ p.1
++
++/-- The pairs counted in one row. -/
++noncomputable def rowPrefixFinset (r : R) : Finset (P × P) := by
++  classical
++  exact Finset.univ.filter fun p =>
++    t.row p.1 = r ∧ t.col p.2 = t.col p.1 ∧ p.2 ≤ p.1
++
++theorem card_rowPrefixPair_eq_finset (r : R) :
++    Nat.card (t.RowPrefixPair r) = (t.rowPrefixFinset r).card := by
++  classical
++  change Nat.card
++    {p : P × P // t.row p.1 = r ∧ t.col p.2 = t.col p.1 ∧ p.2 ≤ p.1} = _
++  rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
++  rfl
++
++/-- Prefix pairs partition by the row of their first coordinate. -/
++theorem card_allPrefixPairs_eq_sum_rows :
++    (t.allPrefixPairs).card =
++      ∑ r : R, (t.rowPrefixFinset r).card := by
++  classical
++  have h := Finset.card_eq_sum_card_fiberwise
++    (s := t.allPrefixPairs) (t := (Finset.univ : Finset R))
++    (f := fun p : P × P => t.row p.1) (by simp)
++  calc
++    (t.allPrefixPairs).card =
++        ∑ r : R, ((t.allPrefixPairs).filter fun p => t.row p.1 = r).card := by
++          simpa using h
++    _ = ∑ r : R, (t.rowPrefixFinset r).card := by
++      apply Finset.sum_congr rfl
++      intro r _
++      congr 1
++      ext p
++      simp [allPrefixPairs, rowPrefixFinset, and_assoc, and_left_comm, and_comm]
++
++/-- If every inclusive downset has size below `K`, every row contributes
++fewer than `K` column-prefix pairs. -/
++theorem card_rowPrefixFinset_lt_of_downset_lt {K : ℕ} (hK : 0 < K)
++    (hdown : ∀ x : P, Nat.card {y : P // y ≤ x} < K) (r : R) :
++    (t.rowPrefixFinset r).card < K := by
++  classical
++  by_cases hr : (t.rowFiber r).Nonempty
++  · obtain ⟨v, _, hcard⟩ := t.rowPrefixPairs_card_le_downset hr
++    rw [← t.card_rowPrefixPair_eq_finset r]
++    exact hcard.trans_lt (hdown v)
++  · have hempty : t.rowPrefixFinset r = ∅ := by
++      apply Finset.eq_empty_of_forall_notMem
++      intro p hp
++      have hrow : t.row p.1 = r := by
++        simpa [rowPrefixFinset] using (Finset.mem_filter.mp hp).2.1
++      exact hr ⟨p.1, t.mem_rowFiber.mpr hrow⟩
++    simpa only [hempty, Finset.card_empty] using hK
++
++/-- One-sided counting: the total number of column-prefix pairs is bounded
++by rows times the maximum allowed inclusive downset size. -/
++theorem card_allPrefixPairs_lt_rows_mul [Nonempty R] {K : ℕ} (hK : 0 < K)
++    (hdown : ∀ x : P, Nat.card {y : P // y ≤ x} < K) :
++    (t.allPrefixPairs).card < Fintype.card R * K := by
++  rw [t.card_allPrefixPairs_eq_sum_rows]
++  calc
++    (∑ r : R, (t.rowPrefixFinset r).card) < ∑ _r : R, K := by
++      apply Finset.sum_lt_sum_of_nonempty (Finset.univ_nonempty)
++      intro r _
++      exact t.card_rowPrefixFinset_lt_of_downset_lt hK hdown r
++    _ = Fintype.card R * K := by simp
++
++/-- The fibre of one column. -/
++noncomputable def colFiber (c : C) : Finset P := by
++  classical
++  exact Finset.univ.filter fun x => t.col x = c
++
++/-- Ordered prefix pairs in one column. -/
++noncomputable def colPrefixFinset (c : C) : Finset (P × P) := by
++  classical
++  exact (t.allPrefixPairs).filter fun p => t.col p.1 = c
++
++/-- A column of length `b` contributes at least `b²/2` ordered prefix pairs. -/
++theorem card_colFiber_sq_le_two_prefix (c : C) :
++    (t.colFiber c).card ^ 2 ≤ 2 * (t.colPrefixFinset c).card := by
++  classical
++  let s := t.colFiber c
++  let d := t.colPrefixFinset c
++  have hsubset : s.product s ⊆ d ∪ d.image Prod.swap := by
++    rintro ⟨x, y⟩ hp
++    obtain ⟨hx, hy⟩ := Finset.mem_product.mp hp
++    have hcx : t.col x = c := by simpa [s, colFiber] using hx
++    have hcy : t.col y = c := by simpa [s, colFiber] using hy
++    rcases t.col_comparable x y (hcx.trans hcy.symm) with hxy | hyx
++    · apply Finset.mem_union_right
++      apply Finset.mem_image.mpr
++      refine ⟨(y, x), ?_, rfl⟩
++      simp [d, colPrefixFinset, allPrefixPairs, hcx, hcy, hxy]
++    · apply Finset.mem_union_left
++      simp [d, colPrefixFinset, allPrefixPairs, hcx, hcy, hyx]
++  have hswap : (d.image Prod.swap).card = d.card := by
++    apply Finset.card_image_of_injective
++    intro p q h
++    simpa only [Prod.swap_swap] using congrArg Prod.swap h
++  calc
++    (t.colFiber c).card ^ 2 = (s.product s).card := by
++      simp [s, Finset.card_product, pow_two]
++    _ ≤ (d ∪ d.image Prod.swap).card := Finset.card_le_card hsubset
++    _ ≤ d.card + (d.image Prod.swap).card := Finset.card_union_le _ _
++    _ = 2 * (t.colPrefixFinset c).card := by
++      rw [hswap]
++      change d.card + d.card = 2 * d.card
++      omega
++
++/-- The poset partitions into column fibres. -/
++theorem card_eq_sum_colFiber :
++    Fintype.card P = ∑ c : C, (t.colFiber c).card := by
++  classical
++  have h := Finset.card_eq_sum_card_fiberwise
++    (s := (Finset.univ : Finset P)) (t := (Finset.univ : Finset C))
++    (f := t.col) (by simp)
++  simpa only [Finset.card_univ, colFiber, Finset.mem_univ, Finset.filter_true] using h
++
++/-- Prefix pairs partition by their column. -/
++theorem card_allPrefixPairs_eq_sum_cols :
++    (t.allPrefixPairs).card =
++      ∑ c : C, (t.colPrefixFinset c).card := by
++  classical
++  have h := Finset.card_eq_sum_card_fiberwise
++    (s := t.allPrefixPairs) (t := (Finset.univ : Finset C))
++    (f := fun p : P × P => t.col p.1) (by simp)
++  simpa only [colPrefixFinset] using h
++
++/-- Squared poset size is at most twice column count times prefix-pair count. -/
++theorem card_sq_le_two_cols_mul_prefix :
++    (Fintype.card P) ^ 2 ≤
++      2 * Fintype.card C * (t.allPrefixPairs).card := by
++  have hcs : (∑ c : C, (t.colFiber c).card) ^ 2 ≤
++      Fintype.card C * ∑ c : C, (t.colFiber c).card ^ 2 := by
++    simpa using (sq_sum_le_card_mul_sum_sq
++      (s := (Finset.univ : Finset C))
++      (f := fun c => (t.colFiber c).card))
++  have hcol : (∑ c : C, (t.colFiber c).card ^ 2) ≤
++      ∑ c : C, 2 * (t.colPrefixFinset c).card := by
++    apply Finset.sum_le_sum
++    intro c _
++    exact t.card_colFiber_sq_le_two_prefix c
++  calc
++    (Fintype.card P) ^ 2 =
++        (∑ c : C, (t.colFiber c).card) ^ 2 := by rw [t.card_eq_sum_colFiber]
++    _ ≤ Fintype.card C * ∑ c : C, (t.colFiber c).card ^ 2 := hcs
++    _ ≤ Fintype.card C * ∑ c : C, 2 * (t.colPrefixFinset c).card :=
++      Nat.mul_le_mul_left _ hcol
++    _ = 2 * Fintype.card C * (t.allPrefixPairs).card := by
++      rw [← Finset.mul_sum, ← t.card_allPrefixPairs_eq_sum_cols]
++      simp only [mul_assoc, mul_comm, mul_left_comm]
++
++/-- One-sided quadratic counting bound for inclusive downsets. -/
++theorem card_sq_lt_two_rows_cols_mul [Nonempty R] [Nonempty C]
++    (t : ThinChains P R C) {K : ℕ} (hK : 0 < K)
++    (hdown : ∀ x : P, Nat.card {y : P // y ≤ x} < K) :
++    (Fintype.card P) ^ 2 <
++      2 * Fintype.card R * Fintype.card C * K := by
++  have hE := card_allPrefixPairs_lt_rows_mul t hK hdown
++  have hC : 0 < 2 * Fintype.card C := by
++    have := Fintype.card_pos (α := C)
++    omega
++  have hmul := mul_lt_mul_of_pos_left hE hC
++  calc
++    (Fintype.card P) ^ 2 ≤
++        2 * Fintype.card C * (t.allPrefixPairs).card :=
++      t.card_sq_le_two_cols_mul_prefix
++    _ < 2 * Fintype.card C * (Fintype.card R * K) := hmul
++    _ = 2 * Fintype.card R * Fintype.card C * K := by
++      simp only [mul_assoc, mul_comm, mul_left_comm]
++
++/-- Non-strict row bound, retaining the exact constant for the pivot theorem. -/
++theorem card_rowPrefixFinset_le_of_downset_le {K : ℕ}
++    (hdown : ∀ x : P, Nat.card {y : P // y ≤ x} ≤ K) (r : R) :
++    (t.rowPrefixFinset r).card ≤ K := by
++  classical
++  by_cases hr : (t.rowFiber r).Nonempty
++  · obtain ⟨v, _, hcard⟩ := t.rowPrefixPairs_card_le_downset hr
++    rw [← t.card_rowPrefixPair_eq_finset r]
++    exact hcard.trans (hdown v)
++  · have hempty : t.rowPrefixFinset r = ∅ := by
++      apply Finset.eq_empty_of_forall_notMem
++      intro p hp
++      have hrow : t.row p.1 = r := by
++        simpa [rowPrefixFinset] using (Finset.mem_filter.mp hp).2.1
++      exact hr ⟨p.1, t.mem_rowFiber.mpr hrow⟩
++    simp [hempty]
++
++theorem card_allPrefixPairs_le_rows_mul {K : ℕ}
++    (hdown : ∀ x : P, Nat.card {y : P // y ≤ x} ≤ K) :
++    (t.allPrefixPairs).card ≤ Fintype.card R * K := by
++  rw [t.card_allPrefixPairs_eq_sum_rows]
++  calc
++    (∑ r : R, (t.rowPrefixFinset r).card) ≤ ∑ _r : R, K := by
++      apply Finset.sum_le_sum
++      intro r _
++      exact t.card_rowPrefixFinset_le_of_downset_le hdown r
++    _ = Fintype.card R * K := by simp
++
++/-- Exact non-strict one-sided quadratic bound. -/
++theorem card_sq_le_two_rows_cols_mul (t : ThinChains P R C) {K : ℕ}
++    (hdown : ∀ x : P, Nat.card {y : P // y ≤ x} ≤ K) :
++    (Fintype.card P) ^ 2 ≤
++      2 * Fintype.card R * Fintype.card C * K := by
++  have hE := card_allPrefixPairs_le_rows_mul t hdown
++  calc
++    (Fintype.card P) ^ 2 ≤
++        2 * Fintype.card C * (t.allPrefixPairs).card :=
++      t.card_sq_le_two_cols_mul_prefix
++    _ ≤ 2 * Fintype.card C * (Fintype.card R * K) :=
++      Nat.mul_le_mul_left _ hE
++    _ = 2 * Fintype.card R * Fintype.card C * K := by
++      simp only [mul_assoc, mul_comm, mul_left_comm]
++
++/-- Reversing the order exchanges inclusive downsets and upsets. -/
++def dual (t : ThinChains P R C) : ThinChains Pᵒᵈ R C where
++  row := t.row
++  col := t.col
++  label_injective := t.label_injective
++  row_comparable := by
++    intro x y h
++    rcases t.row_comparable x y h with hxy | hyx
++    · exact Or.inr hxy
++    · exact Or.inl hyx
++  col_comparable := by
++    intro x y h
++    rcases t.col_comparable x y h with hxy | hyx
++    · exact Or.inr hxy
++    · exact Or.inl hyx
++
++/-- Exact one-sided quadratic bound for inclusive upsets. -/
++theorem card_sq_le_two_rows_cols_mul_of_upset_le (t : ThinChains P R C) {K : ℕ}
++    (hup : ∀ x : P, Nat.card {y : P // x ≤ y} ≤ K) :
++    (Fintype.card P) ^ 2 ≤
++      2 * Fintype.card R * Fintype.card C * K := by
++  have hdual : ∀ x : Pᵒᵈ, Nat.card {y : Pᵒᵈ // y ≤ x} ≤ K := by
++    intro x
++    exact hup x
++  simpa using (t.dual.card_sq_le_two_rows_cols_mul hdual)
++
++end ThinChains
++end MathEconLib.Order
+diff --git a/MathEconLib/ForMathlib/Order/ThinChains/Pivot.lean b/MathEconLib/ForMathlib/Order/ThinChains/Pivot.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..99f20e26a47589bb18e314d9abd9d6bf3c8b1901
+--- /dev/null
++++ b/MathEconLib/ForMathlib/Order/ThinChains/Pivot.lean
+@@ -0,0 +1,124 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.ForMathlib.Order.ThinChains.Centrality
++public import Mathlib.Tactic.Linarith
++public import Mathlib.Tactic.Ring
++public import Mathlib.Data.Fintype.Lattice
++
++/-!
++# Central pivots in thin double chain posets
++
++The one-sided counting bound applies to a partition by whether an element's
++inclusive downset is small. Its complement has small inclusive upsets.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Order
++namespace ThinChains
++
++variable {P R C : Type*} [PartialOrder P] [Fintype P] [Fintype R] [Fintype C]
++
++/-- A thin double chain structure restricts to any subtype. -/
++def restrict (t : ThinChains P R C) (p : P → Prop) : ThinChains {x // p x} R C where
++  row := fun x => t.row x.1
++  col := fun x => t.col x.1
++  label_injective := by
++    intro x y h
++    apply Subtype.ext
++    exact t.label_injective h
++  row_comparable := by
++    intro x y h
++    rcases t.row_comparable x.1 y.1 h with hxy | hyx
++    · exact Or.inl hxy
++    · exact Or.inr hyx
++  col_comparable := by
++    intro x y h
++    rcases t.col_comparable x.1 y.1 h with hxy | hyx
++    · exact Or.inl hxy
++    · exact Or.inr hyx
++
++/-- Inclusive cones in a subtype inject into the corresponding original cones. -/
++theorem card_subtype_downset_le (p : P → Prop) (x : {x // p x}) :
++    Nat.card {y : {x // p x} // y ≤ x} ≤ Nat.card {y : P // y ≤ x.1} := by
++  apply Nat.card_le_card_of_injective
++    (fun y : {y : {x // p x} // y ≤ x} =>
++      (⟨y.1.1, y.2⟩ : {y : P // y ≤ x.1}))
++  intro y z h
++  apply Subtype.ext
++  apply Subtype.ext
++  exact congrArg (fun v : {y : P // y ≤ x.1} => v.1) h
++
++theorem card_subtype_upset_le (p : P → Prop) (x : {x // p x}) :
++    Nat.card {y : {x // p x} // x ≤ y} ≤ Nat.card {y : P // x.1 ≤ y} := by
++  apply Nat.card_le_card_of_injective
++    (fun y : {y : {x // p x} // x ≤ y} =>
++      (⟨y.1.1, y.2⟩ : {y : P // x.1 ≤ y}))
++  intro y z h
++  apply Subtype.ext
++  apply Subtype.ext
++  exact congrArg (fun v : {y : P // x.1 ≤ y} => v.1) h
++
++/-- If every point has a small cone on one side, the whole poset is small. -/
++theorem card_sq_le_eight_rows_cols_mul_of_cones (t : ThinChains P R C) {K : ℕ}
++    (hcones : ∀ x : P,
++      Nat.card {y : P // y ≤ x} ≤ K ∨ Nat.card {y : P // x ≤ y} ≤ K) :
++    (Fintype.card P) ^ 2 ≤
++      8 * Fintype.card R * Fintype.card C * K := by
++  classical
++  let smallDown : P → Prop := fun x => Nat.card {y : P // y ≤ x} ≤ K
++  let a := Fintype.card {x // smallDown x}
++  let b := Fintype.card {x // ¬smallDown x}
++  have hcard : Fintype.card P = a + b := by
++    have ha : a ≤ Fintype.card P := by
++      dsimp [a]
++      exact Fintype.card_subtype_le smallDown
++    dsimp [a, b]
++    rw [Fintype.card_subtype_compl]
++    omega
++  have hA : a ^ 2 ≤ 2 * Fintype.card R * Fintype.card C * K := by
++    exact (t.restrict smallDown).card_sq_le_two_rows_cols_mul (K := K) (by
++      intro x
++      exact (card_subtype_downset_le smallDown x).trans x.2)
++  have hB : b ^ 2 ≤ 2 * Fintype.card R * Fintype.card C * K := by
++    exact (t.restrict fun x => ¬smallDown x).card_sq_le_two_rows_cols_mul_of_upset_le
++      (K := K) (by
++        intro x
++        exact (card_subtype_upset_le (fun x => ¬smallDown x) x).trans
++          ((hcones x.1).resolve_left x.2))
++  have hsq : (a + b) ^ 2 ≤ 2 * (a ^ 2 + b ^ 2) := by
++    nlinarith [sq_nonneg ((a : ℤ) - b)]
++  rw [hcard]
++  calc
++    (a + b) ^ 2 ≤ 2 * (a ^ 2 + b ^ 2) := hsq
++    _ ≤ 2 * (2 * Fintype.card R * Fintype.card C * K +
++      2 * Fintype.card R * Fintype.card C * K) := by omega
++    _ = 8 * Fintype.card R * Fintype.card C * K := by ring
++
++/-- A nonempty thin double chain poset has a pivot whose smaller inclusive
++cone controls the square of its cardinality. -/
++theorem exists_central_pivot [Nonempty P] (t : ThinChains P R C) :
++    ∃ x : P, (Fintype.card P) ^ 2 ≤
++      8 * Fintype.card R * Fintype.card C *
++        min (Nat.card {y : P // y ≤ x}) (Nat.card {y : P // x ≤ y}) := by
++  let score : P → ℕ := fun x =>
++    min (Nat.card {y : P // y ≤ x}) (Nat.card {y : P // x ≤ y})
++  obtain ⟨x, hx⟩ : ∃ x : P, ∀ y : P, score y ≤ score x :=
++    Finite.exists_max score
++  refine ⟨x, t.card_sq_le_eight_rows_cols_mul_of_cones (K := score x) ?_⟩
++  intro y
++  have hscore : score y ≤ score x := hx y
++  dsimp [score] at hscore
++  rcases le_total (Nat.card {z : P // z ≤ y}) (Nat.card {z : P // y ≤ z}) with h | h
++  · left
++    simpa only [min_eq_left h] using hscore
++  · right
++    simpa only [min_eq_right h] using hscore
++
++end ThinChains
++end MathEconLib.Order
+diff --git a/MathEconLib/Matching/Classical/Marriage.lean b/MathEconLib/Matching/Classical/Marriage.lean
+index 15d7e633763fab72cb4512af88823463ab05c3f2..b6c443090be4141615a8da6f552f4d679b5946c9 100644
+--- a/MathEconLib/Matching/Classical/Marriage.lean
++++ b/MathEconLib/Matching/Classical/Marriage.lean
+@@ -11,6 +11,13 @@ public import MathEconLib.Matching.Classical.Marriage.DeferredAcceptanceFixedPoi
+ public import MathEconLib.Matching.Classical.Marriage.FixedPointConvergence
+ public import MathEconLib.Matching.Classical.Marriage.LoneWolf
+ public import MathEconLib.Matching.Classical.Marriage.StableOrder
++public import MathEconLib.Matching.Classical.Marriage.ComputedBlocks
++public import MathEconLib.Matching.Classical.Marriage.CountingBounds
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleCentrality
++public import MathEconLib.Matching.Classical.Marriage.RankInput
++public import MathEconLib.Matching.Classical.Marriage.RankChoice
++public import MathEconLib.Matching.Classical.Marriage.RankInputTruncation
++public import MathEconLib.Matching.Classical.Marriage.RankRepresentation
+ 
+ /-!
+ # The classical marriage market
+diff --git a/MathEconLib/Matching/Classical/Marriage/ComputedBlocks.lean b/MathEconLib/Matching/Classical/Marriage/ComputedBlocks.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1635514bcd9d9f0443e2446e9dbd969c6e6550a
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/ComputedBlocks.lean
+@@ -0,0 +1,142 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.ComputedRows
++public import MathEconLib.ForMathlib.Data.List.BoundedChunks
++public import Mathlib.Algebra.BigOperators.Fin
++
++/-! Explicit short chain blocks of a residual computed irreducible poset. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++variable {m n : Nat} (mkt : MarriageMarket (Fin m) (Fin n))
++
++def sortedRows
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :=
++  (List.finRange m).flatMap (fun r =>
++    mkt.sortedRow (List.finRange m) (List.finRange n) remaining r)
++
++theorem mem_sortedRows
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length))
++    (i : Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length) :
++    i ∈ mkt.sortedRows remaining ↔ i ∈ remaining := by
++  constructor
++  · intro hi
++    obtain ⟨r, _, hr⟩ := List.mem_flatMap.mp hi
++    exact ((mem_sortedRow mkt _ _ remaining r i).mp hr).1
++  · intro hi
++    apply List.mem_flatMap.mpr
++    refine ⟨(mkt.generatingPair _ _ i).1, List.mem_finRange _, ?_⟩
++    exact (mem_sortedRow mkt _ _ remaining _ i).mpr ⟨hi, rfl⟩
++
++theorem sortedRows_nodup
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length))
++    (hnodup : remaining.Nodup) : (mkt.sortedRows remaining).Nodup := by
++  apply List.nodup_flatMap.mpr
++  refine ⟨?_, ?_⟩
++  · intro r _
++    exact sortedRow_nodup mkt _ _ remaining r hnodup
++  · apply (List.nodup_finRange m).imp
++    intro r s hrs
++    apply List.disjoint_left.mpr
++    intro i hir his
++    have hr := ((mem_sortedRow mkt _ _ remaining r i).mp hir).2
++    have hs := ((mem_sortedRow mkt _ _ remaining s i).mp his).2
++    exact hrs (hr.symm.trans hs)
++
++theorem sortedRows_perm
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length))
++    (hnodup : remaining.Nodup) : (mkt.sortedRows remaining).Perm remaining := by
++  apply (List.perm_ext_iff_of_nodup (sortedRows_nodup mkt remaining hnodup) hnodup).mpr
++  exact mem_sortedRows mkt remaining
++
++/-- The chain blocks actually constructed at one residual leaf. -/
++def rowBlocks (D : Nat)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :=
++  (List.finRange m).flatMap (fun r =>
++    ListChunks.chunks D (mkt.sortedRow (List.finRange m) (List.finRange n) remaining r))
++
++private theorem flatten_flatMap {α β : Type*} (input : List α) (f : α → List (List β)) :
++    (input.flatMap f).flatten = input.flatMap (fun x => (f x).flatten) := by
++  induction input with
++  | nil => rfl
++  | cons x input ih => simp [ih]
++
++theorem flatten_rowBlocks (D : Nat) (hD : 0 < D)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :
++    (mkt.rowBlocks D remaining).flatten = mkt.sortedRows remaining := by
++  unfold rowBlocks
++  rw [flatten_flatMap]
++  simp only [ListChunks.flatten_chunks D hD]
++  rfl
++
++theorem rowBlocks_perm (D : Nat) (hD : 0 < D)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length))
++    (hnodup : remaining.Nodup) : (mkt.rowBlocks D remaining).flatten.Perm remaining := by
++  rw [flatten_rowBlocks mkt D hD]
++  exact sortedRows_perm mkt remaining hnodup
++
++theorem rowBlocks_nonempty (D : Nat)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :
++    ∀ block ∈ mkt.rowBlocks D remaining, block ≠ [] := by
++  intro block hblock
++  obtain ⟨r, _, hr⟩ := List.mem_flatMap.mp hblock
++  exact ListChunks.nonempty_of_mem hr
++
++theorem rowBlocks_length_le (D : Nat)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :
++    ∀ block ∈ mkt.rowBlocks D remaining, block.length ≤ D := by
++  intro block hblock
++  obtain ⟨r, _, hr⟩ := List.mem_flatMap.mp hblock
++  exact ListChunks.length_le_of_mem hr
++
++theorem rowBlocks_pairwise (D : Nat)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :
++    ∀ block ∈ mkt.rowBlocks D remaining,
++      block.Pairwise (fun i j =>
++        (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).get i ≤
++        (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).get j) := by
++  intro block hblock
++  obtain ⟨r, _, hr⟩ := List.mem_flatMap.mp hblock
++  exact (sortedRow_pairwise mkt _ _ remaining r).sublist (ListChunks.sublist_of_mem hr)
++
++theorem rowBlocks_length (D : Nat)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :
++    (mkt.rowBlocks D remaining).length =
++      ∑ r : Fin m, (ListChunks.chunks D
++        (mkt.sortedRow (List.finRange m) (List.finRange n) remaining r)).length := by
++  unfold rowBlocks
++  rw [List.length_flatMap, ← List.ofFn_eq_map]
++  exact Fin.sum_ofFn _
++
++theorem rowBlocks_count_mul_le (D : Nat)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length)) :
++    (mkt.rowBlocks D remaining).length * D ≤ remaining.length + m * D := by
++  rw [rowBlocks_length, Finset.sum_mul]
++  calc
++    (∑ r : Fin m, (ListChunks.chunks D
++        (mkt.sortedRow (List.finRange m) (List.finRange n) remaining r)).length * D) ≤
++        ∑ r : Fin m, ((mkt.sortedRow (List.finRange m) (List.finRange n) remaining r).length + D) := by
++      apply Finset.sum_le_sum
++      intro r _
++      exact ListChunks.count_mul_le _ _
++    _ = remaining.length + m * D := by
++      rw [Finset.sum_add_distrib, sum_sortedRow_lengths]
++      simp
++
++theorem rowBlocks_count_le_twice (D : Nat) (hD : 0 < D)
++    (remaining : List (Fin (mkt.computedIrreducibles (List.finRange m) (List.finRange n)).length))
++    (hsmall : remaining.length ≤ m * D) : (mkt.rowBlocks D remaining).length ≤ 2 * m := by
++  have hcount := rowBlocks_count_mul_le mkt D remaining
++  have hbound : (mkt.rowBlocks D remaining).length * D ≤ (2 * m) * D := by nlinarith
++  by_contra h
++  have hlarge := mul_lt_mul_of_pos_right (Nat.lt_of_not_ge h) hD
++  omega
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/ComputedChains.lean b/MathEconLib/Matching/Classical/Marriage/ComputedChains.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..f451f91a46b6b6b56d58a05dda857d55000d7bc5
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/ComputedChains.lean
+@@ -0,0 +1,115 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.ComputedPoset
++public import Mathlib.Data.List.Find
++
++/-!
++# Computable chain labels for generated irreducibles
++
++Search the finite candidate-pair list for a witness generating each computed
++irreducible. Equal-man fibres are chains. This gives an executable chain
++assignment for compact leaf encodings; classical choices used in the separate
++thin-chain centrality proof are not consulted by this construction.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++universe u v
++
++variable {M : Type u} {W : Type v} [Fintype M] [Fintype W]
++variable [DecidableEq M] [DecidableEq W] (mkt : MarriageMarket M W)
++
++def pairMatches (men : List M) (women : List W)
++    (i : Fin (mkt.computedIrreducibles men women).length) (p : M × W) : Bool :=
++  letI := mkt.stableMatchingDecidableEq
++  decide (mkt.thresholdCandidate p.1 p.2 =
++    some ((mkt.computedIrreducibles men women).get i))
++
++theorem exists_generating_pair (men : List M) (women : List W)
++    (i : Fin (mkt.computedIrreducibles men women).length) :
++    ∃ p ∈ men.product women, mkt.pairMatches men women i p = true := by
++  have hmem := List.get_mem (mkt.computedIrreducibles men women) i
++  have hcand := ((mem_computedIrreducibles mkt men women _).mp hmem).1
++  obtain ⟨p, hp, hresult⟩ := List.mem_filterMap.mp hcand
++  refine ⟨p, hp, ?_⟩
++  simpa only [pairMatches, decide_eq_true_eq] using hresult
++
++theorem generatingPair_isSome (men : List M) (women : List W)
++    (i : Fin (mkt.computedIrreducibles men women).length) :
++    ((men.product women).find? (mkt.pairMatches men women i)).isSome := by
++  obtain ⟨p, hp, hmatches⟩ := exists_generating_pair mkt men women i
++  cases hf : (men.product women).find? (mkt.pairMatches men women i) with
++  | none =>
++      exact ((List.find?_eq_none.mp hf) p hp hmatches).elim
++  | some p => simp
++
++/-- A deterministic witness obtained by a finite search over participant pairs. -/
++def generatingPair (men : List M) (women : List W)
++    (i : Fin (mkt.computedIrreducibles men women).length) : M × W :=
++  ((men.product women).find? (mkt.pairMatches men women i)).get
++    (generatingPair_isSome mkt men women i)
++
++theorem generatingPair_spec (men : List M) (women : List W)
++    (i : Fin (mkt.computedIrreducibles men women).length) :
++    mkt.thresholdCandidate (mkt.generatingPair men women i).1
++      (mkt.generatingPair men women i).2 =
++      some ((mkt.computedIrreducibles men women).get i) := by
++  have hf : (men.product women).find? (mkt.pairMatches men women i) =
++      some (mkt.generatingPair men women i) :=
++    (Option.coe_get (generatingPair_isSome mkt men women i)).symm
++  have h := List.find?_some hf
++  simpa only [pairMatches, decide_eq_true_eq] using h
++
++theorem generatingPair_injective (men : List M) (women : List W) :
++    Function.Injective (mkt.generatingPair men women) := by
++  intro i j h
++  apply (computedIrreducibles_nodup mkt men women).injective_get
++  apply Option.some.inj
++  calc
++    some ((mkt.computedIrreducibles men women).get i) =
++        mkt.thresholdCandidate (mkt.generatingPair men women i).1
++          (mkt.generatingPair men women i).2 := (generatingPair_spec mkt men women i).symm
++    _ = mkt.thresholdCandidate (mkt.generatingPair men women j).1
++          (mkt.generatingPair men women j).2 := by rw [h]
++    _ = some ((mkt.computedIrreducibles men women).get j) := generatingPair_spec mkt men women j
++
++theorem generating_le_of_preference (men : List M) (women : List W)
++    (i j : Fin (mkt.computedIrreducibles men women).length)
++    (hman : (mkt.generatingPair men women i).1 = (mkt.generatingPair men women j).1)
++    (hpref : mkt.leM (mkt.generatingPair men women i).1
++      (some (mkt.generatingPair men women i).2) (some (mkt.generatingPair men women j).2)) :
++    (mkt.computedIrreducibles men women).get i ≤ (mkt.computedIrreducibles men women).get j := by
++  have hi := thresholdCandidate_some_spec mkt (generatingPair_spec mkt men women i)
++  have hj := thresholdCandidate_some_spec mkt (generatingPair_spec mkt men women j)
++  rw [← hi.2.2]
++  apply StableMatching.thresholdGenerator_le mkt
++  have hmeet : mkt.leM (mkt.generatingPair men women j).1
++      (some (mkt.generatingPair men women j).2)
++      (((mkt.computedIrreducibles men women).get j).matching
++        (mkt.generatingPair men women j).1) := hj.2.1
++  rw [← hman] at hmeet
++  let := mkt.prefM (mkt.generatingPair men women i).1
++  exact hpref.trans hmeet
++
++theorem same_generating_man_comparable (men : List M) (women : List W)
++    (i j : Fin (mkt.computedIrreducibles men women).length)
++    (hman : (mkt.generatingPair men women i).1 = (mkt.generatingPair men women j).1) :
++    (mkt.computedIrreducibles men women).get i ≤ (mkt.computedIrreducibles men women).get j ∨
++      (mkt.computedIrreducibles men women).get j ≤ (mkt.computedIrreducibles men women).get i := by
++  let := mkt.prefM (mkt.generatingPair men women i).1
++  rcases le_total (some (mkt.generatingPair men women i).2)
++      (some (mkt.generatingPair men women j).2) with h | h
++  · exact Or.inl (generating_le_of_preference mkt men women i j hman h)
++  · right
++    apply generating_le_of_preference mkt men women j i hman.symm
++    rw [← hman]
++    exact h
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/ComputedPoset.lean b/MathEconLib/Matching/Classical/Marriage/ComputedPoset.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce3ac401e9d1641ec99a7c1217e11edbfbe7814c
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/ComputedPoset.lean
+@@ -0,0 +1,109 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleComputation
++
++/-!
++# An explicitly indexed, computed irreducible poset
++
++Its elements are positions in the computed duplicate-free candidate list.
++Comparisons use the supplied preference orders on men's assignments. The
++order isomorphism with intrinsic irreducibles is a proved correctness result;
++neither the construction nor its comparisons enumerate stable matchings.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++universe u v
++
++variable {M : Type u} {W : Type v} [Fintype M] [Fintype W]
++variable [DecidableEq M] [DecidableEq W] (mkt : MarriageMarket M W)
++
++/-- The order is decided through the actual finite preference comparisons. -/
++@[instance_reducible]
++def computedIrreducibleOrder (men : List M) (women : List W) :
++    PartialOrder (Fin (mkt.computedIrreducibles men women).length) where
++  le i j := ∀ m : M, mkt.leM m
++    (((mkt.computedIrreducibles men women).get i).matching m)
++    (((mkt.computedIrreducibles men women).get j).matching m)
++  lt i j := (∀ m : M, mkt.leM m
++      (((mkt.computedIrreducibles men women).get i).matching m)
++      (((mkt.computedIrreducibles men women).get j).matching m)) ∧
++    ¬ ∀ m : M, mkt.leM m
++      (((mkt.computedIrreducibles men women).get j).matching m)
++      (((mkt.computedIrreducibles men women).get i).matching m)
++  lt_iff_le_not_ge _ _ := Iff.rfl
++  le_refl i m := by
++    let := mkt.prefM m
++    exact le_rfl
++  le_trans i j k hij hjk m := by
++    let := mkt.prefM m
++    exact (hij m).trans (hjk m)
++  le_antisymm i j hij hji := by
++    apply (computedIrreducibles_nodup mkt men women).injective_get
++    apply StableMatching.ext mkt
++    apply PEquiv.ext
++    intro m
++    let := mkt.prefM m
++    exact le_antisymm (hij m) (hji m)
++
++/-- Computable order decisions, without a `Fintype` of all stable matchings. -/
++@[instance_reducible]
++def computedIrreducibleDecidableLE (men : List M) (women : List W) :
++    @DecidableLE (Fin (mkt.computedIrreducibles men women).length)
++      (mkt.computedIrreducibleOrder men women).toLE := by
++  intro i j
++  change Decidable (∀ m : M, mkt.leM m
++    (((mkt.computedIrreducibles men women).get i).matching m)
++    (((mkt.computedIrreducibles men women).get j).matching m))
++  letI : DecidablePred (fun m : M => mkt.leM m
++      (((mkt.computedIrreducibles men women).get i).matching m)
++      (((mkt.computedIrreducibles men women).get j).matching m)) :=
++    fun m => (mkt.prefM m).toDecidableLE _ _
++  infer_instance
++
++/-- Positions enumerate exactly the intrinsic join-irreducibles. -/
++def computedIrreducibleEquiv (men : List M) (women : List W)
++    (hmen : ∀ m : M, m ∈ men) (hwomen : ∀ w : W, w ∈ women) :
++    Fin (mkt.computedIrreducibles men women).length ≃
++      {μ : mkt.StableMatching // SupIrred μ} := by
++  letI := mkt.stableMatchingDecidableEq
++  exact
++    { toFun := fun i => ⟨(mkt.computedIrreducibles men women).get i,
++        supIrred_of_mem_computedIrreducibles mkt men women _ (List.get_mem _ _)⟩
++      invFun := fun j => ⟨(mkt.computedIrreducibles men women).idxOf j.1,
++        List.idxOf_lt_length_of_mem
++          (mem_computedIrreducibles_of_supIrred mkt men women hmen hwomen j.1 j.2)⟩
++      left_inv := fun i => by
++        apply Fin.ext
++        exact List.get_idxOf (computedIrreducibles_nodup mkt men women) i
++      right_inv := fun j => by
++        apply Subtype.ext
++        exact List.getElem_idxOf _ }
++
++/-- The explicit comparison relation agrees with the intrinsic lattice order. -/
++def computedIrreducibleOrderIso (men : List M) (women : List W)
++    (hmen : ∀ m : M, m ∈ men) (hwomen : ∀ w : W, w ∈ women) :
++    @OrderIso (Fin (mkt.computedIrreducibles men women).length)
++      {μ : mkt.StableMatching // SupIrred μ}
++      (mkt.computedIrreducibleOrder men women).toLE inferInstance := by
++  letI : LE (Fin (mkt.computedIrreducibles men women).length) :=
++    (mkt.computedIrreducibleOrder men women).toLE
++  exact
++    { toEquiv := mkt.computedIrreducibleEquiv men women hmen hwomen
++      map_rel_iff' := by
++        intro i j
++        change (mkt.computedIrreducibles men women).get i ≤
++          (mkt.computedIrreducibles men women).get j ↔
++          ∀ m : M, mkt.leM m
++            (((mkt.computedIrreducibles men women).get i).matching m)
++            (((mkt.computedIrreducibles men women).get j).matching m)
++        exact StableMatching.le_iff_menWeaklyPrefer mkt }
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/ComputedRows.lean b/MathEconLib/Matching/Classical/Marriage/ComputedRows.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..14b191dfec9c7e80f9340beae5ae5e42c2ba191c
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/ComputedRows.lean
+@@ -0,0 +1,109 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.ComputedChains
++public import Mathlib.Data.List.Sort
++public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
++
++/-! Executable ordered man rows of the computed irreducible poset. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++universe u v
++
++variable {M : Type u} {W : Type v} [Fintype M] [Fintype W]
++variable [DecidableEq M] [DecidableEq W] (mkt : MarriageMarket M W)
++
++def rowLe (men : List M) (women : List W) (m : M)
++    (i j : Fin (mkt.computedIrreducibles men women).length) : Prop :=
++  mkt.leM m (some (mkt.generatingPair men women i).2)
++    (some (mkt.generatingPair men women j).2)
++
++@[instance_reducible]
++def rowLeDecidable (men : List M) (women : List W) (m : M) :
++    DecidableRel (mkt.rowLe men women m) :=
++  fun i j => (mkt.prefM m).toDecidableLE
++    (some (mkt.generatingPair men women i).2) (some (mkt.generatingPair men women j).2)
++
++/-- Restrict to a man's chosen generators and sort in his threshold order. -/
++def sortedRow (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M) :
++    List (Fin (mkt.computedIrreducibles men women).length) :=
++  letI := mkt.rowLeDecidable men women m
++  (remaining.filter (fun i => decide ((mkt.generatingPair men women i).1 = m))).mergeSort
++    (fun i j => decide (mkt.rowLe men women m i j))
++
++theorem sortedRow_perm (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M) :
++    (mkt.sortedRow men women remaining m).Perm
++      (remaining.filter (fun i => decide ((mkt.generatingPair men women i).1 = m))) := by
++  exact List.mergeSort_perm _ _
++
++@[simp] theorem mem_sortedRow (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M)
++    (i : Fin (mkt.computedIrreducibles men women).length) :
++    i ∈ mkt.sortedRow men women remaining m ↔
++      i ∈ remaining ∧ (mkt.generatingPair men women i).1 = m := by
++  simpa only [List.mem_filter, decide_eq_true_eq] using
++    (sortedRow_perm mkt men women remaining m).mem_iff
++
++theorem sortedRow_length (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M) :
++    (mkt.sortedRow men women remaining m).length =
++      (remaining.filter (fun i => decide ((mkt.generatingPair men women i).1 = m))).length :=
++  (sortedRow_perm mkt men women remaining m).length_eq
++
++theorem sortedRow_nodup (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M)
++    (hnodup : remaining.Nodup) : (mkt.sortedRow men women remaining m).Nodup :=
++  (sortedRow_perm mkt men women remaining m).nodup_iff.mpr (hnodup.filter _)
++
++theorem sortedRow_pairwise_rowLe (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M) :
++    (mkt.sortedRow men women remaining m).Pairwise (mkt.rowLe men women m) := by
++  let := mkt.prefM m
++  let := mkt.rowLeDecidable men women m
++  let : Std.Total (mkt.rowLe men women m) := ⟨fun i j => le_total _ _⟩
++  let : IsTrans (Fin (mkt.computedIrreducibles men women).length) (mkt.rowLe men women m) :=
++    ⟨fun _ _ _ hij hjk => le_trans hij hjk⟩
++  exact List.pairwise_mergeSort' _ _
++
++theorem sortedRow_pairwise (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) (m : M) :
++    (mkt.sortedRow men women remaining m).Pairwise
++      (fun i j => (mkt.computedIrreducibles men women).get i ≤
++        (mkt.computedIrreducibles men women).get j) := by
++  apply (sortedRow_pairwise_rowLe mkt men women remaining m).imp_of_mem
++  intro i j hi hj hle
++  have him := ((mem_sortedRow mkt men women remaining m i).mp hi).2
++  have hjm := ((mem_sortedRow mkt men women remaining m j).mp hj).2
++  apply generating_le_of_preference mkt men women i j (him.trans hjm.symm)
++  rw [him]
++  exact hle
++
++/-- The row partition contains each residual point exactly once. -/
++theorem sum_sortedRow_lengths (men : List M) (women : List W)
++    (remaining : List (Fin (mkt.computedIrreducibles men women).length)) :
++    (∑ m : M, (mkt.sortedRow men women remaining m).length) = remaining.length := by
++  simp_rw [sortedRow_length]
++  induction remaining with
++  | nil => simp
++  | cons i remaining ih =>
++      simp only [List.filter_cons]
++      simp only [List.length_cons]
++      simp_rw [show ∀ m : M,
++        (if decide ((mkt.generatingPair men women i).1 = m) then
++          i :: remaining.filter (fun j => decide ((mkt.generatingPair men women j).1 = m))
++        else remaining.filter (fun j => decide ((mkt.generatingPair men women j).1 = m))).length =
++          (if (mkt.generatingPair men women i).1 = m then 1 else 0) +
++            (remaining.filter (fun j => decide ((mkt.generatingPair men women j).1 = m))).length by
++        intro m; split <;> simp_all [Nat.add_comm]]
++      simp [Finset.sum_add_distrib, ih, Nat.add_comm]
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/CountingBounds.lean b/MathEconLib/Matching/Classical/Marriage/CountingBounds.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..e43deec21d16eb99289bf014dc7d894ca8f5a062
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/CountingBounds.lean
+@@ -0,0 +1,47 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.StableOrder
++public import Mathlib.Data.Fintype.Pi
++public import Mathlib.SetTheory.Cardinal.Finite
++
++/-! A bound on the size of the exact stable-matching count. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket.StableMatching
++
++variable {M W : Type*} [Fintype M] [Fintype W] (mkt : MarriageMarket M W)
++
++/-- Recording each man's partner is injective, including unmatched men.
++In particular the binary output length of exact counting is polynomial in
++the explicit preference-list input size. -/
++theorem card_le_partner_assignments :
++    Nat.card mkt.StableMatching ≤ (Fintype.card W + 1) ^ Fintype.card M := by
++  classical
++  have hinj : Function.Injective (fun μ : mkt.StableMatching =>
++      fun m : M => μ.matching m) := by
++    intro μ ν h
++    apply ext mkt
++    apply PEquiv.ext
++    exact congrFun h
++  have h := Nat.card_le_card_of_injective _ hinj
++  simpa only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_option] using h
++
++/-- A coarse bound requiring at most one bit per possible pair, plus one
++bit, to write the exact count in binary. -/
++theorem card_le_two_pow_pairs :
++    Nat.card mkt.StableMatching ≤ 2 ^ (Fintype.card M * Fintype.card W) := by
++  calc
++    Nat.card mkt.StableMatching ≤ (Fintype.card W + 1) ^ Fintype.card M :=
++      card_le_partner_assignments mkt
++    _ ≤ (2 ^ Fintype.card W) ^ Fintype.card M :=
++      Nat.pow_le_pow_left (Nat.succ_le_of_lt (Nat.lt_two_pow_self)) _
++    _ = 2 ^ (Fintype.card M * Fintype.card W) := by
++      rw [← pow_mul, Nat.mul_comm]
++
++end MathEconLib.Matching.MarriageMarket.StableMatching
+diff --git a/MathEconLib/Matching/Classical/Marriage/Distributive.lean b/MathEconLib/Matching/Classical/Marriage/Distributive.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..7899932d128ccedafcffadba216a2e4f6298d3b3
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/Distributive.lean
+@@ -0,0 +1,407 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.StableOrder
++public import MathEconLib.Matching.Classical.Marriage.LoneWolf
++public import Mathlib.Order.Birkhoff
++
++/-!
++# Distributivity of the stable marriage lattice
++
++The order is the men's preference order. The proof first constructs the join
++by assigning each man his preferred assignment from two stable matchings.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching
++
++universe u v
++
++namespace MarriageMarket
++
++variable {M : Type u} {W : Type v} (mkt : MarriageMarket M W)
++
++namespace StableMatching
++
++/-- A partial matching bijects its matched participants on the two sides. -/
++private noncomputable def matchedEquiv (ρ : M ≃. W) :
++    {m : M // (ρ m).isSome} ≃ {w : W // (ρ.symm w).isSome} where
++  toFun x := ⟨(ρ x.1).get x.2, by
++    have hx : ρ x.1 = some ((ρ x.1).get x.2) := (Option.coe_get x.2).symm
++    rw [ρ.eq_some_iff.mpr hx]
++    rfl⟩
++  invFun y := ⟨(ρ.symm y.1).get y.2, by
++    have hy : ρ.symm y.1 = some ((ρ.symm y.1).get y.2) := (Option.coe_get y.2).symm
++    rw [ρ.eq_some_iff.mp hy]
++    rfl⟩
++  left_inv x := by
++    apply Subtype.ext
++    have hx : ρ x.1 = some ((ρ x.1).get x.2) := (Option.coe_get x.2).symm
++    simp [ρ.eq_some_iff.mpr hx]
++  right_inv y := by
++    apply Subtype.ext
++    have hy : ρ.symm y.1 = some ((ρ.symm y.1).get y.2) := (Option.coe_get y.2).symm
++    simp [ρ.eq_some_iff.mp hy]
++
++/-- The better of two assignments according to man `m`. -/
++noncomputable def preferredM (μ ν : mkt.StableMatching) (m : M) : Option W := by
++  letI := mkt.prefM m
++  exact max (μ.matching m) (ν.matching m)
++
++theorem le_preferredM_left (μ ν : mkt.StableMatching) (m : M) :
++    mkt.leM m (μ.matching m) (preferredM mkt μ ν m) := by
++  let := mkt.prefM m
++  exact le_max_left _ _
++
++theorem le_preferredM_right (μ ν : mkt.StableMatching) (m : M) :
++    mkt.leM m (ν.matching m) (preferredM mkt μ ν m) := by
++  let := mkt.prefM m
++  exact le_max_right _ _
++
++theorem preferredM_eq_left_or_right (μ ν : mkt.StableMatching) (m : M) :
++    preferredM mkt μ ν m = μ.matching m ∨
++      preferredM mkt μ ν m = ν.matching m := by
++  let := mkt.prefM m
++  rcases le_total (μ.matching m) (ν.matching m) with h | h
++  · right
++    exact max_eq_right h
++  · left
++    exact max_eq_left h
++
++theorem preferredM_rightUnique (μ ν : mkt.StableMatching) (m : M)
++    {w w' : W} (hw : preferredM mkt μ ν m = some w)
++    (hw' : preferredM mkt μ ν m = some w') : w = w' :=
++  Option.some.inj (hw.symm.trans hw')
++
++/-- Crossed preferred choices cannot assign one woman twice. -/
++private theorem preferredM_crossUnique (μ ν : mkt.StableMatching)
++    {m m' : M} {w : W}
++    (hmw : μ.matching m = some w) (hm'w : ν.matching m' = some w)
++    (hμ : preferredM mkt μ ν m = some w)
++    (hν : preferredM mkt μ ν m' = some w) : m = m' := by
++  let := mkt.prefW w
++  by_contra hne
++  have hνm : ν.matching m ≠ some w := by
++    intro heq
++    exact hne (ν.matching.graph_leftUnique heq hm'w)
++  have hμm' : μ.matching m' ≠ some w := by
++    intro heq
++    exact hne (μ.matching.graph_leftUnique heq hmw).symm
++  have hltν : mkt.ltM m (ν.matching m) (some w) := by
++    let := mkt.prefM m
++    have hle : mkt.leM m (ν.matching m) (some w) := by
++      simpa only [hμ] using (le_preferredM_right mkt μ ν m)
++    exact lt_of_le_of_ne hle hνm
++  have hltμ : mkt.ltM m' (μ.matching m') (some w) := by
++    let := mkt.prefM m'
++    have hle : mkt.leM m' (μ.matching m') (some w) := by
++      simpa only [hν] using (le_preferredM_left mkt μ ν m')
++    exact lt_of_le_of_ne hle hμm'
++  have hνle : mkt.leW w (some m) (some m') := by
++    have hnot := ν.isStable.2.1 m w
++    have hle : mkt.leW w (some m) (ν.matching.symm w) :=
++      le_of_not_gt (fun h => hnot ⟨hltν, h⟩)
++    simpa only [ν.matching.eq_some_iff.mpr hm'w] using hle
++  have hμle : mkt.leW w (some m') (some m) := by
++    have hnot := μ.isStable.2.1 m' w
++    have hle : mkt.leW w (some m') (μ.matching.symm w) :=
++      le_of_not_gt (fun h => hnot ⟨hltμ, h⟩)
++    simpa only [μ.matching.eq_some_iff.mpr hmw] using hle
++  exact hne (Option.some.inj (le_antisymm hνle hμle))
++
++/-- Two men cannot choose the same woman from two stable matchings. -/
++theorem preferredM_leftUnique (μ ν : mkt.StableMatching) (w : W)
++    {m m' : M} (hm : preferredM mkt μ ν m = some w)
++    (hm' : preferredM mkt μ ν m' = some w) : m = m' := by
++  rcases preferredM_eq_left_or_right mkt μ ν m with hμ | hν <;>
++    rcases preferredM_eq_left_or_right mkt μ ν m' with hμ' | hν'
++  · exact μ.matching.graph_leftUnique (hμ.symm.trans hm) (hμ'.symm.trans hm')
++  · exact preferredM_crossUnique mkt μ ν (hμ.symm.trans hm) (hν'.symm.trans hm')
++      hm hm'
++  · exact preferredM_crossUnique mkt ν μ (hν.symm.trans hm)
++      (hμ'.symm.trans hm')
++      (by simpa [preferredM, max_comm] using hm)
++      (by simpa [preferredM, max_comm] using hm')
++  · exact ν.matching.graph_leftUnique (hν.symm.trans hm) (hν'.symm.trans hm')
++
++/-- The pointwise preferred assignment is a partial matching. -/
++noncomputable def preferredMatching (μ ν : mkt.StableMatching) : M ≃. W :=
++  PEquiv.ofRelation (fun m w => preferredM mkt μ ν m = some w)
++    (fun m _ hw _ hw' => preferredM_rightUnique mkt μ ν m hw hw')
++    (fun w _ hm _ hm' => preferredM_leftUnique mkt μ ν w hm hm')
++
++@[simp] theorem preferredMatching_apply (μ ν : mkt.StableMatching) (m : M) :
++    preferredMatching mkt μ ν m = preferredM mkt μ ν m := by
++  apply Option.ext
++  intro w
++  exact PEquiv.ofRelation_apply_eq_some_iff _ _ _
++
++/-- Every man weakly prefers the constructed matching to both inputs. -/
++theorem le_preferredMatching_left (μ ν : mkt.StableMatching) (m : M) :
++    mkt.leM m (μ.matching m) (preferredMatching mkt μ ν m) := by
++  rw [preferredMatching_apply]
++  exact le_preferredM_left mkt μ ν m
++
++theorem le_preferredMatching_right (μ ν : mkt.StableMatching) (m : M) :
++    mkt.leM m (ν.matching m) (preferredMatching mkt μ ν m) := by
++  rw [preferredMatching_apply]
++  exact le_preferredM_right mkt μ ν m
++
++section Finite
++
++variable [Finite M] [Finite W]
++
++/-- The pointwise choice preserves the matched men. -/
++private theorem preferredMatching_isSome_iff (μ ν : mkt.StableMatching) (m : M) :
++    (preferredMatching mkt μ ν m).isSome ↔ (μ.matching m).isSome := by
++  have hnone := mkt.eq_none_iff_of_stable μ.isStable ν.isStable m
++  cases hμ : μ.matching m with
++  | none =>
++      have hν : ν.matching m = none := hnone.mp hμ
++      simp [preferredMatching_apply, preferredM, hμ, hν]
++  | some w =>
++      cases hν : ν.matching m with
++      | none =>
++          have : μ.matching m = none := hnone.mpr hν
++          simp [hμ] at this
++      | some w' =>
++          rcases preferredM_eq_left_or_right mkt μ ν m with hleft | hright
++          · simp [preferredMatching_apply, hleft, hμ]
++          · simp [preferredMatching_apply, hright, hν]
++
++/-- Every woman chosen by the constructed matching is matched in each input. -/
++private theorem preferredMatching_woman_isSome_imp (μ ν : mkt.StableMatching)
++    (w : W) (hw : ((preferredMatching mkt μ ν).symm w).isSome) :
++    (μ.matching.symm w).isSome := by
++  let σ := preferredMatching mkt μ ν
++  cases hσ : σ.symm w with
++  | none =>
++      change (σ.symm w).isSome at hw
++      simp [hσ] at hw
++  | some m =>
++      have hmw : σ m = some w := σ.eq_some_iff.mp hσ
++      rw [preferredMatching_apply] at hmw
++      rcases preferredM_eq_left_or_right mkt μ ν m with hμ | hν
++      · have hμw : μ.matching.symm w = some m :=
++          μ.matching.eq_some_iff.mpr (hμ.symm.trans hmw)
++        simp [hμw]
++      · have hνw : ν.matching.symm w = some m :=
++          ν.matching.eq_some_iff.mpr (hν.symm.trans hmw)
++        have hνsome : (ν.matching.symm w).isSome := by simp [hνw]
++        exact (mkt.isSome_symm_iff_of_stable μ.isStable ν.isStable w).mpr hνsome
++
++/-- The pointwise choice also preserves the matched women. -/
++theorem preferredMatching_woman_isSome_iff (μ ν : mkt.StableMatching) (w : W) :
++    ((preferredMatching mkt μ ν).symm w).isSome ↔
++      (μ.matching.symm w).isSome := by
++  classical
++  let σ := preferredMatching mkt μ ν
++  have hD : ∀ m : M, (σ m).isSome ↔ (μ.matching m).isSome :=
++    preferredMatching_isSome_iff mkt μ ν
++  let domainEquiv : {m : M // (σ m).isSome} ≃ {m : M // (μ.matching m).isSome} :=
++    { toFun := fun x => ⟨x.1, (hD x.1).mp x.2⟩
++      invFun := fun x => ⟨x.1, (hD x.1).mpr x.2⟩
++      left_inv := fun _ => rfl
++      right_inv := fun _ => rfl }
++  let womanEquiv : {w : W // (σ.symm w).isSome} ≃
++      {w : W // (μ.matching.symm w).isSome} :=
++    (matchedEquiv σ).symm.trans (domainEquiv.trans (matchedEquiv μ.matching))
++  let inclusion : {w : W // (σ.symm w).isSome} →
++      {w : W // (μ.matching.symm w).isSome} :=
++    fun x => ⟨x.1, preferredMatching_woman_isSome_imp mkt μ ν x.1 x.2⟩
++  have hinj : Function.Injective inclusion := by
++    intro x y h
++    have hv : (inclusion x).1 = (inclusion y).1 :=
++      congrArg (fun z : {w : W // (μ.matching.symm w).isSome} => z.1) h
++    exact Subtype.ext hv
++  have hsurj : Function.Surjective inclusion :=
++    (Finite.injective_iff_surjective_of_equiv womanEquiv).mp hinj
++  constructor
++  · exact preferredMatching_woman_isSome_imp mkt μ ν w
++  · intro hw
++    obtain ⟨x, hx⟩ := hsurj ⟨w, hw⟩
++    have : x.1 = w := congrArg Subtype.val hx
++    simpa only [this] using x.2
++
++/-- A woman's assignment in the pointwise construction comes from an input. -/
++theorem preferredMatching_woman_eq_left_or_right (μ ν : mkt.StableMatching) (w : W) :
++    (preferredMatching mkt μ ν).symm w = μ.matching.symm w ∨
++      (preferredMatching mkt μ ν).symm w = ν.matching.symm w := by
++  let σ := preferredMatching mkt μ ν
++  cases hσ : σ.symm w with
++  | none =>
++      have hμnone : μ.matching.symm w = none := by
++        cases hμ : μ.matching.symm w with
++        | none => rfl
++        | some m =>
++            have hs := (preferredMatching_woman_isSome_iff mkt μ ν w).mpr
++              (by simp [hμ])
++            change (σ.symm w).isSome at hs
++            simp [hσ] at hs
++      left
++      exact hμnone.symm
++  | some m =>
++      have hmw : σ m = some w := σ.eq_some_iff.mp hσ
++      rw [preferredMatching_apply] at hmw
++      rcases preferredM_eq_left_or_right mkt μ ν m with hμ | hν
++      · left
++        exact (μ.matching.eq_some_iff.mpr (hμ.symm.trans hmw)).symm
++      · right
++        exact (ν.matching.eq_some_iff.mpr (hν.symm.trans hmw)).symm
++
++/-- Pointwise preferred choice of two stable matchings is stable. -/
++theorem stable_preferredMatching (μ ν : mkt.StableMatching) :
++    mkt.IsStableMatching (preferredMatching mkt μ ν) := by
++  let σ := preferredMatching mkt μ ν
++  refine ⟨⟨?_, ?_⟩, (mkt.unblocked_iff_no_blockingPair σ).mpr ?_⟩
++  · intro m
++    let := mkt.prefM m
++    exact le_trans (μ.isStable.1.1 m) (le_preferredMatching_left mkt μ ν m)
++  · intro w
++    change mkt.leW w none ((preferredMatching mkt μ ν).symm w)
++    rcases preferredMatching_woman_eq_left_or_right mkt μ ν w with h | h
++    · rw [h]
++      exact μ.isStable.1.2 w
++    · rw [h]
++      exact ν.isStable.1.2 w
++  · intro m w hblock
++    have hmμ : mkt.ltM m (μ.matching m) (some w) := by
++      let := mkt.prefM m
++      exact lt_of_le_of_lt (le_preferredMatching_left mkt μ ν m) hblock.1
++    have hmν : mkt.ltM m (ν.matching m) (some w) := by
++      let := mkt.prefM m
++      exact lt_of_le_of_lt (le_preferredMatching_right mkt μ ν m) hblock.1
++    have hwμ : mkt.leW w (some m) (μ.matching.symm w) := by
++      let := mkt.prefW w
++      exact le_of_not_gt (fun h => μ.isStable.2.1 m w ⟨hmμ, h⟩)
++    have hwν : mkt.leW w (some m) (ν.matching.symm w) := by
++      let := mkt.prefW w
++      exact le_of_not_gt (fun h => ν.isStable.2.1 m w ⟨hmν, h⟩)
++    change mkt.ltM m (σ m) (some w) ∧
++      mkt.ltW w ((preferredMatching mkt μ ν).symm w) (some m) at hblock
++    let := mkt.prefW w
++    rcases preferredMatching_woman_eq_left_or_right mkt μ ν w with h | h
++    · rw [h] at hblock
++      exact (not_lt_of_ge hwμ) hblock.2
++    · rw [h] at hblock
++      exact (not_lt_of_ge hwν) hblock.2
++
++end Finite
++
++variable [Fintype M] [Fintype W]
++
++/-- The lattice join is pointwise maximum in each man's preference order. -/
++theorem matching_sup_apply (μ ν : mkt.StableMatching) (m : M) :
++    (μ ⊔ ν).matching m = preferredM mkt μ ν m := by
++  let σ : mkt.StableMatching :=
++    ⟨preferredMatching mkt μ ν, stable_preferredMatching mkt μ ν⟩
++  have hμσ : μ ≤ σ :=
++    (le_iff_menWeaklyPrefer mkt).mpr (le_preferredMatching_left mkt μ ν)
++  have hνσ : ν ≤ σ :=
++    (le_iff_menWeaklyPrefer mkt).mpr (le_preferredMatching_right mkt μ ν)
++  have hsupσ : μ ⊔ ν ≤ σ := sup_le hμσ hνσ
++  have hσsup : σ ≤ μ ⊔ ν := by
++    apply (le_iff_menWeaklyPrefer mkt).mpr
++    intro m'
++    let := mkt.prefM m'
++    have hμ : mkt.leM m' (μ.matching m') ((μ ⊔ ν).matching m') :=
++      (le_iff_menWeaklyPrefer mkt).mp le_sup_left m'
++    have hν : mkt.leM m' (ν.matching m') ((μ ⊔ ν).matching m') :=
++      (le_iff_menWeaklyPrefer mkt).mp le_sup_right m'
++    change mkt.leM m' ((preferredMatching mkt μ ν) m') _
++    rw [preferredMatching_apply]
++    exact max_le hμ hν
++  have hσ : μ ⊔ ν = σ := le_antisymm hsupσ hσsup
++  have h := congrArg (fun ρ : mkt.StableMatching => ρ.matching m) hσ
++  simpa only [σ, preferredMatching_apply] using h
++
++/-- The meet assigns each woman her preferred input assignment. -/
++theorem matching_inf_symm_apply (μ ν : mkt.StableMatching) (w : W) :
++    (μ ⊓ ν).matching.symm w =
++      preferredM mkt.symm (symmEquiv mkt μ) (symmEquiv mkt ν) w := by
++  have h := (symmOrderIso mkt).map_inf μ ν
++  change symmEquiv mkt (μ ⊓ ν) =
++    (symmEquiv mkt μ ⊔ symmEquiv mkt ν) at h
++  have hw := congrArg (fun ρ : mkt.symm.StableMatching => ρ.matching w) h
++  simpa only [matching_symmEquiv, matching_sup_apply] using hw
++
++/-- Each man's assignment at the meet comes from one of its inputs. -/
++theorem matching_inf_eq_left_or_right (μ ν : mkt.StableMatching) (m : M) :
++    (μ ⊓ ν).matching m = μ.matching m ∨
++      (μ ⊓ ν).matching m = ν.matching m := by
++  cases hτ : (μ ⊓ ν).matching m with
++  | none =>
++      have hμ : μ.matching m = none :=
++        (mkt.eq_none_iff_of_stable (μ ⊓ ν).isStable μ.isStable m).mp hτ
++      exact Or.inl hμ.symm
++  | some w =>
++      have hτw : (μ ⊓ ν).matching.symm w = some m :=
++        (μ ⊓ ν).matching.eq_some_iff.mpr hτ
++      have hpreferred := matching_inf_symm_apply mkt μ ν w
++      rcases preferredM_eq_left_or_right mkt.symm
++          (symmEquiv mkt μ) (symmEquiv mkt ν) w with hμ | hν
++      · have hμw : μ.matching.symm w = some m := by
++          simpa only [matching_symmEquiv] using hμ.symm.trans (hpreferred.symm.trans hτw)
++        exact Or.inl (μ.matching.eq_some_iff.mp hμw).symm
++      · have hνw : ν.matching.symm w = some m := by
++          simpa only [matching_symmEquiv] using hν.symm.trans (hpreferred.symm.trans hτw)
++        exact Or.inr (ν.matching.eq_some_iff.mp hνw).symm
++
++/-- The lattice meet is pointwise minimum in each man's preference order. -/
++theorem matching_inf_apply (μ ν : mkt.StableMatching) (m : M) :
++    (μ ⊓ ν).matching m =
++      (letI := mkt.prefM m; min (μ.matching m) (ν.matching m)) := by
++  let := mkt.prefM m
++  have hμ : mkt.leM m ((μ ⊓ ν).matching m) (μ.matching m) :=
++    (le_iff_menWeaklyPrefer mkt).mp inf_le_left m
++  have hν : mkt.leM m ((μ ⊓ ν).matching m) (ν.matching m) :=
++    (le_iff_menWeaklyPrefer mkt).mp inf_le_right m
++  rcases matching_inf_eq_left_or_right mkt μ ν m with hleft | hright
++  · rw [hleft] at hν ⊢
++    exact (min_eq_left hν).symm
++  · rw [hright] at hμ ⊢
++    exact (min_eq_right hμ).symm
++
++/-- Stable marriage satisfies the distributive law. -/
++theorem inf_sup_distrib (μ ν ω : mkt.StableMatching) :
++    μ ⊓ (ν ⊔ ω) = (μ ⊓ ν) ⊔ (μ ⊓ ω) := by
++  apply ext mkt
++  apply PEquiv.ext
++  intro m
++  let := mkt.prefM m
++  simp only [matching_inf_apply, matching_sup_apply, preferredM]
++  exact min_max_distrib_left _ _ _
++
++/-- The finite stable-matching lattice is distributive. -/
++noncomputable instance : DistribLattice mkt.StableMatching :=
++  DistribLattice.ofInfSupLe fun μ ν ω => le_of_eq (inf_sup_distrib mkt μ ν ω)
++
++/-- Canonical Birkhoff representation of the finite stable-matching lattice.
++The poset is its intrinsic set of join-irreducible stable matchings. -/
++noncomputable def lowerSetSupIrred :
++    mkt.StableMatching ≃o LowerSet {μ : mkt.StableMatching // SupIrred μ} := by
++  classical
++  have hinj : Function.Injective
++      (fun μ : mkt.StableMatching => fun m : M => μ.matching m) := by
++    intro μ ν h
++    apply ext mkt
++    apply PEquiv.ext
++    intro m
++    exact congrFun h m
++  letI : Finite mkt.StableMatching := Finite.of_injective _ hinj
++  letI : Fintype mkt.StableMatching := Fintype.ofFinite _
++  exact OrderIso.lowerSetSupIrred
++
++@[simp] theorem mem_lowerSetSupIrred (μ : mkt.StableMatching)
++    (j : {ν : mkt.StableMatching // SupIrred ν}) :
++    j ∈ lowerSetSupIrred mkt μ ↔ j.1 ≤ μ := by
++  rfl
++
++end StableMatching
++end MarriageMarket
++end MathEconLib.Matching
+diff --git a/MathEconLib/Matching/Classical/Marriage/IrreducibleCentrality.lean b/MathEconLib/Matching/Classical/Marriage/IrreducibleCentrality.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..ad7842eb37dc7e4fa211c2f970bdc5c852fd803c
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/IrreducibleCentrality.lean
+@@ -0,0 +1,58 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleChains
++public import MathEconLib.ForMathlib.Order.ThinChains.Pivot
++
++/-!
++# A central irreducible in a marriage market
++
++The intrinsic join-irreducibles are thin double chains with men and women as
++the two labels. Generic thin-chain counting therefore supplies a pivot.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching
++
++universe u v
++
++namespace MarriageMarket
++
++variable {M : Type u} {W : Type v} (mkt : MarriageMarket M W)
++variable [Fintype M] [Fintype W]
++
++namespace StableMatching
++
++/-- An intrinsic irreducible has a small inclusive cone on neither side unless
++the total number of irreducibles is correspondingly small. -/
++theorem exists_central_irreducible
++    [Nonempty {μ : mkt.StableMatching // SupIrred μ}] :
++    ∃ j : {μ : mkt.StableMatching // SupIrred μ},
++      (Nat.card {μ : mkt.StableMatching // SupIrred μ}) ^ 2 ≤
++        8 * Fintype.card M * Fintype.card W *
++          min
++            (Nat.card {k : {μ : mkt.StableMatching // SupIrred μ} // k ≤ j})
++            (Nat.card {k : {μ : mkt.StableMatching // SupIrred μ} // j ≤ k}) := by
++  classical
++  let : Fintype mkt.StableMatching := by
++    have hinj : Function.Injective
++        (fun μ : mkt.StableMatching => fun m : M => μ.matching m) := by
++      intro μ ν h
++      apply ext mkt
++      apply PEquiv.ext
++      intro m
++      exact congrFun h m
++    have : Finite mkt.StableMatching := Finite.of_injective _ hinj
++    exact Fintype.ofFinite _
++  let : Fintype {μ : mkt.StableMatching // SupIrred μ} := inferInstance
++  obtain ⟨j, hj⟩ := (irreducibleThinChains mkt).exists_central_pivot
++  exact ⟨j, by simpa only [Nat.card_eq_fintype_card] using hj⟩
++
++end StableMatching
++end MarriageMarket
++end MathEconLib.Matching
+diff --git a/MathEconLib/Matching/Classical/Marriage/IrreducibleChains.lean b/MathEconLib/Matching/Classical/Marriage/IrreducibleChains.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..deec5233594ed95a1ac55f957e480ebb37e881ab
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/IrreducibleChains.lean
+@@ -0,0 +1,217 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.OrderIdeals
++public import MathEconLib.ForMathlib.Order.ThinChains
++
++/-!
++# Two chain partitions of intrinsic stable-matching irreducibles
++
++Each join-irreducible is labelled by one man and one woman, using its
++coordinate threshold generator. Equal-man and equal-woman fibres are chains.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching
++
++universe u v
++
++namespace MarriageMarket
++
++variable {M : Type u} {W : Type v} (mkt : MarriageMarket M W)
++variable [Fintype M] [Fintype W]
++
++namespace StableMatching
++
++/-- A join-irreducible cannot be generated by an unmatched coordinate. -/
++theorem thresholdIndex_isSome
++    (j : {μ : mkt.StableMatching // SupIrred μ}) :
++    (thresholdIndex mkt j).2.isSome := by
++  let m := (thresholdIndex mkt j).1
++  have hgen := thresholdIndex_generator mkt j
++  change thresholdGenerator mkt m (j.1.matching m) = j.1 at hgen
++  cases hj : j.1.matching m with
++  | some w =>
++      change (j.1.matching m).isSome
++      simp [hj]
++  | none =>
++      have hbotnone : (⊥ : mkt.StableMatching).matching m = none :=
++        (mkt.eq_none_iff_of_stable j.1.isStable (⊥ : mkt.StableMatching).isStable m).mp hj
++      have hbot : MeetsThreshold mkt m none (⊥ : mkt.StableMatching) := by
++        let := mkt.prefM m
++        change none ≤ (⊥ : mkt.StableMatching).matching m
++        rw [hbotnone]
++      have hle : thresholdGenerator mkt m none ≤ (⊥ : mkt.StableMatching) :=
++        thresholdGenerator_le mkt hbot
++      have heq : thresholdGenerator mkt m none = (⊥ : mkt.StableMatching) :=
++        le_antisymm hle bot_le
++      have hjbot : j.1 = (⊥ : mkt.StableMatching) := by
++        rw [hj] at hgen
++        exact hgen.symm.trans heq
++      exact False.elim (j.2.ne_bot hjbot)
++
++/-- The chosen generating coordinate, with the outside option removed. -/
++noncomputable def irreducibleLabel
++    (j : {μ : mkt.StableMatching // SupIrred μ}) : M × W :=
++  let p := thresholdIndex mkt j
++  (p.1, p.2.get (thresholdIndex_isSome mkt j))
++
++theorem irreducibleLabel_eq_thresholdIndex
++    (j : {μ : mkt.StableMatching // SupIrred μ}) :
++    thresholdIndex mkt j =
++      ((irreducibleLabel mkt j).1, some (irreducibleLabel mkt j).2) := by
++  apply Prod.ext
++  · rfl
++  · exact (Option.coe_get (thresholdIndex_isSome mkt j)).symm
++
++theorem irreducibleLabel_matching
++    (j : {μ : mkt.StableMatching // SupIrred μ}) :
++    j.1.matching (irreducibleLabel mkt j).1 =
++      some (irreducibleLabel mkt j).2 := by
++  have h := irreducibleLabel_eq_thresholdIndex mkt j
++  exact congrArg Prod.snd h
++
++theorem irreducibleLabel_generator
++    (j : {μ : mkt.StableMatching // SupIrred μ}) :
++    thresholdGenerator mkt (irreducibleLabel mkt j).1
++      (some (irreducibleLabel mkt j).2) = j.1 := by
++  have h := thresholdIndex_generator mkt j
++  rw [irreducibleLabel_eq_thresholdIndex mkt j] at h
++  exact h
++
++theorem irreducibleLabel_injective :
++    Function.Injective (irreducibleLabel mkt) := by
++  intro j k h
++  apply thresholdIndex_injective mkt
++  rw [irreducibleLabel_eq_thresholdIndex mkt j,
++    irreducibleLabel_eq_thresholdIndex mkt k, h]
++
++/-- The join-irreducibles carrying a fixed man label form a chain. -/
++theorem same_man_comparable
++    (j k : {μ : mkt.StableMatching // SupIrred μ})
++    (hman : (irreducibleLabel mkt j).1 = (irreducibleLabel mkt k).1) :
++    j.1 ≤ k.1 ∨ k.1 ≤ j.1 := by
++  let m := (irreducibleLabel mkt j).1
++  let := mkt.prefM m
++  rcases le_total (some (irreducibleLabel mkt j).2)
++      (some (irreducibleLabel mkt k).2) with h | h
++  · left
++    rw [← irreducibleLabel_generator mkt j]
++    apply thresholdGenerator_le mkt
++    change mkt.leM m (some (irreducibleLabel mkt j).2) (k.1.matching m)
++    have hk := irreducibleLabel_matching mkt k
++    rw [← hman] at hk
++    have h' : mkt.leM m (some (irreducibleLabel mkt j).2)
++        (some (irreducibleLabel mkt k).2) := h
++    rw [hk]
++    exact h'
++  · right
++    rw [← irreducibleLabel_generator mkt k]
++    apply thresholdGenerator_le mkt
++    change mkt.leM (irreducibleLabel mkt k).1
++      (some (irreducibleLabel mkt k).2)
++      (j.1.matching (irreducibleLabel mkt k).1)
++    have hj := irreducibleLabel_matching mkt j
++    rw [hman] at hj
++    have h' : mkt.leM m (some (irreducibleLabel mkt k).2)
++        (some (irreducibleLabel mkt j).2) := h
++    have hman' : m = (irreducibleLabel mkt k).1 := hman
++    rw [← hman'] at hj ⊢
++    rw [hj]
++    exact h'
++
++private theorem le_of_same_woman_preference
++    (j k : {μ : mkt.StableMatching // SupIrred μ})
++    (hw : (irreducibleLabel mkt j).2 = (irreducibleLabel mkt k).2)
++    (hp : mkt.leW (irreducibleLabel mkt j).2
++      (some (irreducibleLabel mkt k).1)
++      (some (irreducibleLabel mkt j).1)) :
++    j.1 ≤ k.1 := by
++  let m := (irreducibleLabel mkt j).1
++  let m' := (irreducibleLabel mkt k).1
++  let w := (irreducibleLabel mkt j).2
++  by_cases hmm : m = m'
++  · have hlabel : irreducibleLabel mkt j = irreducibleLabel mkt k :=
++      Prod.ext hmm hw
++    exact le_of_eq (congrArg Subtype.val (irreducibleLabel_injective mkt hlabel))
++  have hwstrict : mkt.ltW w (some m') (some m) := by
++    let := mkt.prefW w
++    apply lt_of_le_of_ne hp
++    intro heq
++    exact hmm (Option.some.inj heq).symm
++  have hkw : k.1.matching.symm w = some m' := by
++    have hk := irreducibleLabel_matching mkt k
++    rw [← hw] at hk
++    exact k.1.matching.eq_some_iff.mpr hk
++  have hkm : mkt.leM m (some w) (k.1.matching m) := by
++    let := mkt.prefM m
++    apply le_of_not_gt
++    intro hlt
++    have hblock : mkt.IsBlockingPair k.1.matching m w := by
++      refine ⟨hlt, ?_⟩
++      change mkt.ltW w (k.1.matching.symm w) (some m)
++      rw [hkw]
++      exact hwstrict
++    exact k.1.isStable.2.1 m w hblock
++  rw [← irreducibleLabel_generator mkt j]
++  exact thresholdGenerator_le mkt hkm
++
++/-- The join-irreducibles carrying a fixed woman label form a chain. -/
++theorem same_woman_comparable
++    (j k : {μ : mkt.StableMatching // SupIrred μ})
++    (hw : (irreducibleLabel mkt j).2 = (irreducibleLabel mkt k).2) :
++    j.1 ≤ k.1 ∨ k.1 ≤ j.1 := by
++  let w := (irreducibleLabel mkt j).2
++  let := mkt.prefW w
++  rcases le_total (some (irreducibleLabel mkt k).1)
++      (some (irreducibleLabel mkt j).1) with h | h
++  · left
++    exact le_of_same_woman_preference mkt j k hw h
++  · right
++    have h' : mkt.leW (irreducibleLabel mkt k).2
++        (some (irreducibleLabel mkt j).1)
++        (some (irreducibleLabel mkt k).1) := by
++      rw [← hw]
++      exact h
++    exact le_of_same_woman_preference mkt k j hw.symm h'
++
++/-- Sharper cardinal bound: a join-irreducible has a distinct man-woman label. -/
++theorem card_supIrred_le_pairs :
++    Nat.card {μ : mkt.StableMatching // SupIrred μ} ≤
++      Fintype.card M * Fintype.card W := by
++  classical
++  let : Fintype mkt.StableMatching := by
++    have hinj : Function.Injective
++        (fun μ : mkt.StableMatching => fun m : M => μ.matching m) := by
++      intro μ ν h
++      apply ext mkt
++      apply PEquiv.ext
++      intro m
++      exact congrFun h m
++    have : Finite mkt.StableMatching := Finite.of_injective _ hinj
++    exact Fintype.ofFinite _
++  have hcard : Fintype.card {μ : mkt.StableMatching // SupIrred μ} ≤
++      Fintype.card (M × W) :=
++    Fintype.card_le_of_injective (irreducibleLabel mkt)
++      (irreducibleLabel_injective mkt)
++  simpa only [Nat.card_eq_fintype_card, Fintype.card_prod] using hcard
++
++/-- The intrinsic irreducibles form a thin double chain poset, with men as
++rows and women as columns. -/
++noncomputable def irreducibleThinChains :
++    MathEconLib.Order.ThinChains
++      {μ : mkt.StableMatching // SupIrred μ} M W where
++  row := fun j => (irreducibleLabel mkt j).1
++  col := fun j => (irreducibleLabel mkt j).2
++  label_injective := irreducibleLabel_injective mkt
++  row_comparable := fun j k h => same_man_comparable mkt j k h
++  col_comparable := fun j k h => same_woman_comparable mkt j k h
++
++end StableMatching
++end MarriageMarket
++end MathEconLib.Matching
+diff --git a/MathEconLib/Matching/Classical/Marriage/IrreducibleComputation.lean b/MathEconLib/Matching/Classical/Marriage/IrreducibleComputation.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..e0f5a589c74dd88935bc5ae684b855ca8e2fd06d
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/IrreducibleComputation.lean
+@@ -0,0 +1,125 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.ThresholdComputation
++public import MathEconLib.Matching.Classical.Marriage.IrreducibleChains
++public import Mathlib.Data.List.Nodup
++public import Mathlib.Data.List.Dedup
++public import Mathlib.Data.List.ProdSigma
++
++/-!
++# Computing all intrinsic stable-matching irreducibles
++
++There is one finite DA candidate per supplied man/partner pair. Remove bottom
++and repeated candidates. The resulting list contains exactly the intrinsic
++join-irreducibles when the participant lists are exhaustive. The definitions
++do not enumerate the type of all stable matchings.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++universe u v
++
++variable {M : Type u} {W : Type v} [Fintype M] [Fintype W]
++variable [DecidableEq M] [DecidableEq W] (mkt : MarriageMarket M W)
++
++/-- Equality is decided by the explicitly finite list of men's assignments. -/
++@[instance_reducible]
++def stableMatchingDecidableEq : DecidableEq mkt.StableMatching := by
++  intro μ ν
++  apply decidable_of_iff (∀ m : M, μ.matching m = ν.matching m)
++  constructor
++  · intro h
++    apply StableMatching.ext mkt
++    apply PEquiv.ext
++    exact h
++  · intro h m
++    exact congrArg (fun σ : mkt.StableMatching => σ.matching m) h
++
++/-- Compute the bottom stable matching by the existing executable DA. -/
++def computedBottom : mkt.StableMatching where
++  matching := mkt.womanGaleShapleyComputable
++  isStable := mkt.stable_womanGaleShapleyComputable
++
++theorem computedBottom_eq_bot : mkt.computedBottom = ⊥ := by
++  apply StableMatching.ext mkt
++  exact mkt.womanGaleShapleyComputable_eq_womanOptimalMatching.trans
++    (StableMatching.matching_bot mkt).symm
++
++/-- A computed list, using only pairwise DA runs and finite comparisons. -/
++def computedIrreducibles (men : List M) (women : List W) : List mkt.StableMatching :=
++  letI := mkt.stableMatchingDecidableEq
++  ((mkt.thresholdCandidates men women).filter (fun μ => decide (μ ≠ mkt.computedBottom))).dedup
++
++theorem mem_computedIrreducibles (men : List M) (women : List W) (μ : mkt.StableMatching) :
++    μ ∈ mkt.computedIrreducibles men women ↔
++      μ ∈ mkt.thresholdCandidates men women ∧ μ ≠ ⊥ := by
++  simp [computedIrreducibles, computedBottom_eq_bot]
++
++theorem computedIrreducibles_nodup (men : List M) (women : List W) :
++    (mkt.computedIrreducibles men women).Nodup := by
++  let := mkt.stableMatchingDecidableEq
++  unfold computedIrreducibles
++  exact List.nodup_dedup _
++
++theorem computedIrreducibles_length (men : List M) (women : List W) :
++    (mkt.computedIrreducibles men women).length ≤ men.length * women.length := by
++  let := mkt.stableMatchingDecidableEq
++  change (((mkt.thresholdCandidates men women).filter
++    (fun μ => decide (μ ≠ mkt.computedBottom))).dedup).length ≤ men.length * women.length
++  calc
++    (((mkt.thresholdCandidates men women).filter
++        (fun μ => decide (μ ≠ mkt.computedBottom))).dedup).length ≤
++        ((mkt.thresholdCandidates men women).filter (fun μ => decide (μ ≠ mkt.computedBottom))).length :=
++      (List.dedup_sublist _).length_le
++    _ ≤ (mkt.thresholdCandidates men women).length := List.length_filter_le _ _
++    _ ≤ men.length * women.length := thresholdCandidates_length mkt men women
++
++theorem supIrred_of_mem_computedIrreducibles (men : List M) (women : List W)
++    (μ : mkt.StableMatching) (hμ : μ ∈ mkt.computedIrreducibles men women) : SupIrred μ := by
++  obtain ⟨hμ, hne⟩ := (mem_computedIrreducibles mkt men women μ).mp hμ
++  obtain ⟨⟨m, w⟩, _, hresult⟩ := List.mem_filterMap.mp hμ
++  have hspec := thresholdCandidate_some_spec mkt hresult
++  have hprime := thresholdGenerator_supPrime mkt ⟨μ, hspec.2.1⟩
++    (by rw [hspec.2.2]; exact hne)
++  rw [hspec.2.2] at hprime
++  exact hprime.supIrred
++
++theorem mem_computedIrreducibles_of_supIrred (men : List M) (women : List W)
++    (hmen : ∀ m : M, m ∈ men) (hwomen : ∀ w : W, w ∈ women)
++    (μ : mkt.StableMatching) (hμ : SupIrred μ) :
++    μ ∈ mkt.computedIrreducibles men women := by
++  let j : {ν : mkt.StableMatching // SupIrred ν} := ⟨μ, hμ⟩
++  let m := (StableMatching.irreducibleLabel mkt j).1
++  let w := (StableMatching.irreducibleLabel mkt j).2
++  have hmatching : μ.matching m = some w := StableMatching.irreducibleLabel_matching mkt j
++  have hacceptable : mkt.ltM m none (some w) := by
++    let := mkt.prefM m
++    have hir : mkt.leM m none (μ.matching m) := μ.isStable.1.1 m
++    rw [hmatching] at hir
++    exact lt_of_le_of_ne hir (by simp)
++  have hthreshold : mkt.leM m (some w) (μ.matching m) := by
++    let := mkt.prefM m
++    rw [hmatching]
++    exact le_rfl
++  have hresult : mkt.thresholdCandidate m w = some μ :=
++    thresholdCandidate_eq_of_generator mkt m w μ hacceptable hthreshold
++      (StableMatching.irreducibleLabel_generator mkt j)
++  apply (mem_computedIrreducibles mkt men women μ).mpr
++  refine ⟨?_, hμ.ne_bot⟩
++  apply List.mem_filterMap.mpr
++  exact ⟨(m, w), List.mem_product.mpr ⟨hmen m, hwomen w⟩, hresult⟩
++
++theorem mem_computedIrreducibles_iff (men : List M) (women : List W)
++    (hmen : ∀ m : M, m ∈ men) (hwomen : ∀ w : W, w ∈ women) (μ : mkt.StableMatching) :
++    μ ∈ mkt.computedIrreducibles men women ↔ SupIrred μ :=
++  ⟨supIrred_of_mem_computedIrreducibles mkt men women μ,
++    mem_computedIrreducibles_of_supIrred mkt men women hmen hwomen μ⟩
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/OrderIdeals.lean b/MathEconLib/Matching/Classical/Marriage/OrderIdeals.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..96ec13570adcded08f7612c135fe4bcc40942236
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/OrderIdeals.lean
+@@ -0,0 +1,191 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.Distributive
++public import Mathlib.Data.Fintype.Card
++
++/-!
++# Threshold generators for the stable marriage lattice
++
++An intrinsic ideal representation is supplied by `StableMatching.lowerSetSupIrred`.
++Here a man and a partner threshold define the least stable matching meeting that
++threshold, when one exists. Every join-irreducible stable matching is one of
++these generators.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching
++
++universe u v
++
++namespace MarriageMarket
++
++variable {M : Type u} {W : Type v} (mkt : MarriageMarket M W)
++variable [Fintype M] [Fintype W]
++
++namespace StableMatching
++
++/-- Stable matchings in which man `m` gets an assignment at least `o`. -/
++def MeetsThreshold (m : M) (o : Option W) (μ : mkt.StableMatching) : Prop :=
++  mkt.leM m o (μ.matching m)
++
++/-- Greatest lower bound of stable matchings meeting a coordinate threshold.
++When the threshold is feasible, this is its least stable realization. -/
++noncomputable def thresholdGenerator (m : M) (o : Option W) :
++    mkt.StableMatching :=
++  sInf {μ | MeetsThreshold mkt m o μ}
++
++theorem thresholdGenerator_le {m : M} {o : Option W} {μ : mkt.StableMatching}
++    (hμ : MeetsThreshold mkt m o μ) :
++    thresholdGenerator mkt m o ≤ μ :=
++  sInf_le hμ
++
++theorem meetsThreshold_inf {m : M} {o : Option W}
++    {μ ν : mkt.StableMatching}
++    (hμ : MeetsThreshold mkt m o μ) (hν : MeetsThreshold mkt m o ν) :
++    MeetsThreshold mkt m o (μ ⊓ ν) := by
++  let := mkt.prefM m
++  change o ≤ (μ ⊓ ν).matching m
++  rw [matching_inf_apply]
++  exact le_min hμ hν
++
++/-- A feasible threshold is met by its least stable realization. -/
++theorem thresholdGenerator_meets {m : M} {o : Option W}
++    (hex : ∃ μ : mkt.StableMatching, MeetsThreshold mkt m o μ) :
++    MeetsThreshold mkt m o (thresholdGenerator mkt m o) := by
++  classical
++  let : Fintype mkt.StableMatching := by
++    have hinj : Function.Injective
++        (fun μ : mkt.StableMatching => fun m' : M => μ.matching m') := by
++      intro μ ν h
++      apply ext mkt
++      apply PEquiv.ext
++      intro m'
++      exact congrFun h m'
++    have : Finite mkt.StableMatching := Finite.of_injective _ hinj
++    exact Fintype.ofFinite _
++  let P : mkt.StableMatching → Prop := MeetsThreshold mkt m o
++  have htop : P ⊤ := by
++    obtain ⟨μ, hμ⟩ := hex
++    let := mkt.prefM m
++    exact le_trans hμ ((le_iff_menWeaklyPrefer mkt).mp (le_top (a := μ)) m)
++  have hclosed : ∀ μ ν, P μ → P ν → P (μ ⊓ ν) := by
++    intro μ ν hμ hν
++    exact meetsThreshold_inf mkt hμ hν
++  have hfin : ∀ s : Finset mkt.StableMatching,
++      (∀ μ ∈ s, P μ) → P (s.inf id) := by
++    intro s
++    induction s using Finset.induction_on with
++    | empty =>
++        intro _
++        simpa using htop
++    | @insert μ s hnot ih =>
++        intro hall
++        rw [Finset.inf_insert]
++        apply hclosed
++        · exact hall μ (Finset.mem_insert_self _ _)
++        · apply ih
++          intro ν hν
++          exact hall ν (Finset.mem_insert_of_mem hν)
++  let s : Finset mkt.StableMatching := Finset.univ.filter P
++  have hall : ∀ μ ∈ s, P μ := by
++    intro μ hμ
++    exact (Finset.mem_filter.mp hμ).2
++  have hs : (s : Set mkt.StableMatching) = {μ | P μ} := by
++    ext μ
++    simp [s]
++  have h := hfin s hall
++  change P (sInf {μ | P μ})
++  rw [← hs, ← Finset.inf_id_eq_sInf]
++  exact h
++
++/-- The generator at an attained threshold keeps that man's assignment fixed. -/
++theorem thresholdGenerator_matching (μ : mkt.StableMatching) (m : M) :
++    (thresholdGenerator mkt m (μ.matching m)).matching m = μ.matching m := by
++  let := mkt.prefM m
++  have hmem : MeetsThreshold mkt m (μ.matching m) μ := le_rfl
++  have hle := thresholdGenerator_le mkt hmem
++  have hleft : mkt.leM m
++      ((thresholdGenerator mkt m (μ.matching m)).matching m) (μ.matching m) :=
++    (le_iff_menWeaklyPrefer mkt).mp hle m
++  have hright : mkt.leM m (μ.matching m)
++      ((thresholdGenerator mkt m (μ.matching m)).matching m) :=
++    thresholdGenerator_meets mkt ⟨μ, hmem⟩
++  exact le_antisymm hleft hright
++
++/-- Every intrinsic join-irreducible has a coordinate threshold that generates it. -/
++theorem exists_thresholdGenerator_eq (j : {μ : mkt.StableMatching // SupIrred μ}) :
++    ∃ m : M, thresholdGenerator mkt m (j.1.matching m) = j.1 := by
++  classical
++  have hle : j.1 ≤
++      (Finset.univ : Finset M).sup
++        (fun m => thresholdGenerator mkt m (j.1.matching m)) := by
++    apply (le_iff_menWeaklyPrefer mkt).mpr
++    intro m
++    have hmember : thresholdGenerator mkt m (j.1.matching m) ≤
++        (Finset.univ : Finset M).sup
++          (fun m => thresholdGenerator mkt m (j.1.matching m)) :=
++      Finset.le_sup (f := fun m => thresholdGenerator mkt m (j.1.matching m))
++        (Finset.mem_univ m)
++    have hcoord := (le_iff_menWeaklyPrefer mkt).mp hmember m
++    rw [thresholdGenerator_matching mkt j.1 m] at hcoord
++    exact hcoord
++  obtain ⟨m, _, hj⟩ := j.2.supPrime.le_finset_sup.mp hle
++  refine ⟨m, le_antisymm ?_ hj⟩
++  have hmem : MeetsThreshold mkt m (j.1.matching m) j.1 := by
++    let := mkt.prefM m
++    exact le_rfl
++  exact thresholdGenerator_le mkt hmem
++
++/-- A canonical coordinate witness selected for a join-irreducible matching. -/
++noncomputable def thresholdIndex
++    (j : {μ : mkt.StableMatching // SupIrred μ}) : M × Option W :=
++  let m := Classical.choose (exists_thresholdGenerator_eq mkt j)
++  (m, j.1.matching m)
++
++theorem thresholdIndex_generator
++    (j : {μ : mkt.StableMatching // SupIrred μ}) :
++    thresholdGenerator mkt (thresholdIndex mkt j).1 (thresholdIndex mkt j).2 = j.1 :=
++  Classical.choose_spec (exists_thresholdGenerator_eq mkt j)
++
++theorem thresholdIndex_injective :
++    Function.Injective (thresholdIndex mkt) := by
++  intro j k h
++  apply Subtype.ext
++  calc
++    j.1 = thresholdGenerator mkt (thresholdIndex mkt j).1
++        (thresholdIndex mkt j).2 := (thresholdIndex_generator mkt j).symm
++    _ = thresholdGenerator mkt (thresholdIndex mkt k).1
++        (thresholdIndex mkt k).2 := by rw [h]
++    _ = k.1 := thresholdIndex_generator mkt k
++
++/-- The intrinsic join-irreducible poset has at most one generator per
++man and possible assignment. -/
++theorem card_supIrred_le :
++    Nat.card {μ : mkt.StableMatching // SupIrred μ} ≤
++      Fintype.card M * (Fintype.card W + 1) := by
++  classical
++  let : Fintype mkt.StableMatching := by
++    have hinj : Function.Injective
++        (fun μ : mkt.StableMatching => fun m : M => μ.matching m) := by
++      intro μ ν h
++      apply ext mkt
++      apply PEquiv.ext
++      intro m
++      exact congrFun h m
++    have : Finite mkt.StableMatching := Finite.of_injective _ hinj
++    exact Fintype.ofFinite _
++  have hcard : Fintype.card {μ : mkt.StableMatching // SupIrred μ} ≤
++      Fintype.card (M × Option W) :=
++    Fintype.card_le_of_injective (thresholdIndex mkt) (thresholdIndex_injective mkt)
++  simpa only [Nat.card_eq_fintype_card, Fintype.card_prod,
++    Fintype.card_option] using hcard
++
++end StableMatching
++end MarriageMarket
++end MathEconLib.Matching
+diff --git a/MathEconLib/Matching/Classical/Marriage/RankChoice.lean b/MathEconLib/Matching/Classical/Marriage/RankChoice.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..e05a04ca07d4b02e1b5e3af29d33948bda2458d1
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/RankChoice.lean
+@@ -0,0 +1,118 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.RankInput
++public import MathEconLib.Choice.FiniteOption
++
++/-! A list-based rank selector, suitable for polynomial-time compilation. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++def preferHigher (score : Nat → Nat) (best candidate : Nat) : Nat :=
++  if score best < score candidate then candidate else best
++
++theorem preferHigher_mem (score : Nat → Nat) (best candidate : Nat) :
++    preferHigher score best candidate = best ∨ preferHigher score best candidate = candidate := by
++  unfold preferHigher
++  split_ifs <;> simp
++
++theorem score_le_preferHigher_left (score : Nat → Nat) (best candidate : Nat) :
++    score best ≤ score (preferHigher score best candidate) := by
++  unfold preferHigher
++  split_ifs <;> omega
++
++theorem score_le_preferHigher_right (score : Nat → Nat) (best candidate : Nat) :
++    score candidate ≤ score (preferHigher score best candidate) := by
++  unfold preferHigher
++  split_ifs <;> omega
++
++def rankBest (rows : List (List Nat)) (i outside : Nat) (candidates : List Nat) : Nat :=
++  candidates.foldl (preferHigher (rankAt rows i)) outside
++
++theorem rankBest_mem (rows : List (List Nat)) (i outside : Nat) (candidates : List Nat) :
++    rankBest rows i outside candidates = outside ∨ rankBest rows i outside candidates ∈ candidates := by
++  induction candidates generalizing outside with
++  | nil => exact Or.inl rfl
++  | cons e es ih =>
++    change rankBest rows i (preferHigher (rankAt rows i) outside e) es = outside ∨
++      rankBest rows i (preferHigher (rankAt rows i) outside e) es ∈ e :: es
++    rcases ih (preferHigher (rankAt rows i) outside e) with h | h
++    · rw [h]
++      rcases preferHigher_mem (rankAt rows i) outside e with heq | heq
++      · exact Or.inl heq
++      · exact Or.inr (by simp [heq])
++    · exact Or.inr (List.mem_cons_of_mem e h)
++
++theorem rankBest_ge_outside (rows : List (List Nat)) (i outside : Nat) (candidates : List Nat) :
++    rankAt rows i outside ≤ rankAt rows i (rankBest rows i outside candidates) := by
++  induction candidates generalizing outside with
++  | nil => exact le_rfl
++  | cons e es ih =>
++    exact (score_le_preferHigher_left (rankAt rows i) outside e).trans
++      (ih (preferHigher (rankAt rows i) outside e))
++
++theorem rankBest_ge_mem (rows : List (List Nat)) (i outside : Nat) (candidates : List Nat)
++    (e : Nat) (he : e ∈ candidates) :
++    rankAt rows i e ≤ rankAt rows i (rankBest rows i outside candidates) := by
++  induction candidates generalizing outside with
++  | nil => cases he
++  | cons c cs ih =>
++    rcases List.mem_cons.mp he with rfl | he
++    · exact (score_le_preferHigher_right (rankAt rows i) outside e).trans
++        (rankBest_ge_outside rows i (preferHigher (rankAt rows i) outside e) cs)
++    · exact ih (preferHigher (rankAt rows i) outside c) he
++
++/-- The list selector computes the existing finite-option choice, rather
++than defining a different preference rule. -/
++theorem rankBest_eq_bestOptionIndex {n : Nat} (row : List Nat)
++    (hlen : row.length = n + 1) (hnd : row.Nodup) (candidates : List (Fin n)) :
++    rankBest [row] 0 n (candidates.map Fin.val) =
++      (optionIndex (MathEconLib.Choice.ChoiceFunction.bestOption
++        (rankRowOrder row hlen hnd) candidates.toFinset)).val := by
++  let pref := rankRowOrder row hlen hnd
++  let best := MathEconLib.Choice.ChoiceFunction.bestOption pref candidates.toFinset
++  let r := rankBest [row] 0 n (candidates.map Fin.val)
++  have hrmem : r = n ∨ r ∈ candidates.map Fin.val := rankBest_mem _ _ _ _
++  have hrlt : r < n + 1 := by
++    rcases hrmem with h | h
++    · omega
++    · obtain ⟨j, _, hj⟩ := List.mem_map.mp h
++      have := j.is_lt
++      omega
++  let ri : Fin row.length := ⟨r, by rw [hlen]; exact hrlt⟩
++  let bi : Fin row.length := Fin.cast hlen.symm (optionIndex best)
++  have hrscore : row.getD r 0 ≤ row.getD (optionIndex best).val 0 := by
++    rcases hrmem with hrn | hrc
++    · have hle := MathEconLib.Choice.ChoiceFunction.le_bestOption pref candidates.toFinset
++        (MathEconLib.Choice.ChoiceFunction.none_mem_optionMenu _)
++      change row.getD n 0 ≤ row.getD (optionIndex best).val 0 at hle
++      simpa only [hrn] using hle
++    · obtain ⟨j, hj, hjval⟩ := List.mem_map.mp hrc
++      have hle := MathEconLib.Choice.ChoiceFunction.le_bestOption pref candidates.toFinset
++        (MathEconLib.Choice.ChoiceFunction.some_mem_optionMenu.mpr (List.mem_toFinset.mpr hj))
++      change row.getD j.val 0 ≤ row.getD (optionIndex best).val 0 at hle
++      simpa only [hjval] using hle
++  have hbscore : row.getD (optionIndex best).val 0 ≤ row.getD r 0 := by
++    have hmem := MathEconLib.Choice.ChoiceFunction.bestOption_mem pref candidates.toFinset
++    rcases MathEconLib.Choice.ChoiceFunction.mem_optionMenu.mp hmem with hnone | ⟨j, hj, hjbest⟩
++    · change best = none at hnone
++      rw [hnone]
++      exact rankBest_ge_outside [row] 0 n (candidates.map Fin.val)
++    · have h := rankBest_ge_mem [row] 0 n (candidates.map Fin.val) j.val
++        (List.mem_map.mpr ⟨j, List.mem_toFinset.mp hj, rfl⟩)
++      change some j = best at hjbest
++      rw [← hjbest]
++      exact h
++  have hscore := le_antisymm hrscore hbscore
++  have hget : row.get ri = row.get bi := by
++    rw [← List.getD_eq_get row 0 ri, ← List.getD_eq_get row 0 bi]
++    exact hscore
++  exact congrArg (fun i : Fin row.length => i.val) (hnd.get_inj_iff.mp hget)
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/RankInput.lean b/MathEconLib/Matching/Classical/Marriage/RankInput.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2dd563a3b47b82d04652d9b4655d6d44a8e3505
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/RankInput.lean
+@@ -0,0 +1,108 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.Preferences
++public import Mathlib.Data.List.GetD
++public import Mathlib.Data.List.Nodup
++
++/-! Explicit rank-list inputs for the existing marriage-market model.
++Higher ranks are preferred; the last entry is the outside option. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++def optionIndex {n : Nat} : Option (Fin n) → Fin (n + 1)
++  | none => ⟨n, by omega⟩
++  | some i => i.castSucc
++
++theorem optionIndex_injective {n : Nat} : Function.Injective (@optionIndex n) := by
++  intro a b h
++  have hv := congrArg Fin.val h
++  cases a with
++  | none =>
++    cases b with
++    | none => rfl
++    | some b =>
++      change n = b.val at hv
++      omega
++  | some a =>
++    cases b with
++    | none =>
++      change a.val = n at hv
++      omega
++    | some b =>
++      congr 1
++      exact Fin.ext hv
++
++/-- Total list lookup; the validity proofs below ensure that defaults are
++never used for participants and their optional partners. -/
++def rankAt (rows : List (List Nat)) (i j : Nat) : Nat :=
++  (rows.getD i []).getD j 0
++
++@[instance_reducible]
++def rankRowOrder {n : Nat} (row : List Nat) (hlen : row.length = n + 1)
++    (hnd : row.Nodup) : LinearOrder (Option (Fin n)) :=
++  LinearOrder.lift' (fun o => row.getD (optionIndex o).val 0) (by
++    let index (o : Option (Fin n)) : Fin row.length := Fin.cast hlen.symm (optionIndex o)
++    have hget (o : Option (Fin n)) :
++        row.getD (optionIndex o).val 0 = row.get (index o) :=
++      List.getD_eq_get row 0 (index o)
++    intro a b h
++    change row.getD (optionIndex a).val 0 = row.getD (optionIndex b).val 0 at h
++    rw [hget a, hget b] at h
++    have hi := hnd.get_inj_iff.mp h
++    apply optionIndex_injective
++    apply Fin.ext
++    exact congrArg (fun i : Fin row.length => i.val) hi)
++
++/-- Balanced explicit input lists. Each participant lists a distinct numeric
++rank for every partner and for remaining unmatched. -/
++structure RankInput where
++  men : List (List Nat)
++  women : List (List Nat)
++  women_length : women.length = men.length
++  men_row_length : ∀ row ∈ men, row.length = men.length + 1
++  women_row_length : ∀ row ∈ women, row.length = men.length + 1
++  men_row_nodup : ∀ row ∈ men, row.Nodup
++  women_row_nodup : ∀ row ∈ women, row.Nodup
++
++namespace RankInput
++
++def market (p : RankInput) : MarriageMarket (Fin p.men.length) (Fin p.men.length) where
++  prefM m := rankRowOrder (p.men.get m)
++    (p.men_row_length _ (List.get_mem _ _)) (p.men_row_nodup _ (List.get_mem _ _))
++  prefW w :=
++    let i : Fin p.women.length := Fin.cast p.women_length.symm w
++    rankRowOrder (p.women.get i)
++      (p.women_row_length _ (List.get_mem _ _)) (p.women_row_nodup _ (List.get_mem _ _))
++
++theorem leM_iff (p : RankInput) (m : Fin p.men.length)
++    (a b : Option (Fin p.men.length)) :
++    p.market.leM m a b ↔
++      rankAt p.men m.val (optionIndex a).val ≤ rankAt p.men m.val (optionIndex b).val := by
++  simp only [rankAt, List.getD_eq_get p.men [] m]
++  rfl
++
++theorem ltM_iff (p : RankInput) (m : Fin p.men.length)
++    (a b : Option (Fin p.men.length)) :
++    p.market.ltM m a b ↔
++      rankAt p.men m.val (optionIndex a).val < rankAt p.men m.val (optionIndex b).val := by
++  simp only [rankAt, List.getD_eq_get p.men [] m]
++  rfl
++
++theorem leW_iff (p : RankInput) (w : Fin p.men.length)
++    (a b : Option (Fin p.men.length)) :
++    p.market.leW w a b ↔
++      rankAt p.women w.val (optionIndex a).val ≤ rankAt p.women w.val (optionIndex b).val := by
++  let i : Fin p.women.length := Fin.cast p.women_length.symm w
++  have hrow : p.women.getD w.val [] = p.women.get i := List.getD_eq_get p.women [] i
++  simp only [rankAt, hrow]
++  rfl
++
++end RankInput
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/RankInputTruncation.lean b/MathEconLib/Matching/Classical/Marriage/RankInputTruncation.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a94d0e98d03a04450757b4ee58902adfcd2f50e
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/RankInputTruncation.lean
+@@ -0,0 +1,88 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.RankTruncation
++public import MathEconLib.Matching.Classical.Marriage.RankSymmetry
++
++/-! Truncating an explicit input realizes the existing market transformation. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++theorem truncateMan_leM_self {M W : Type*} [DecidableEq M]
++    (mkt : MarriageMarket M W) (m : M) (threshold : W) (a b : Option W) :
++    (mkt.truncateMan m threshold).leM m a b ↔
++      @LE.le _ (truncateOptionOrder (mkt.prefM m) threshold).toLE a b := by
++  change @LE.le _ ((mkt.truncateMan m threshold).prefM m).toLE a b ↔ _
++  rw [mkt.truncateMan_prefM_self]
++
++namespace RankInput
++
++@[reducible] def truncated (p : RankInput) (m threshold : Fin p.men.length) : RankInput where
++  men := truncateRankRows p.men m.val threshold.val
++  women := p.women
++  women_length := by simpa only [truncateRankRows, List.length_set] using p.women_length
++  men_row_length := by
++    intro row hr
++    change row ∈ p.men.set m.val _ at hr
++    simp only [truncateRankRows, List.length_set]
++    rcases List.mem_or_eq_of_mem_set hr with hr | rfl
++    · exact p.men_row_length row hr
++    · rw [truncateRanks_length, List.getD_eq_get p.men [] m]
++      exact p.men_row_length _ (List.get_mem _ _)
++  women_row_length := by
++    intro row hr
++    simpa only [truncateRankRows, List.length_set] using p.women_row_length row hr
++  men_row_nodup := by
++    intro row hr
++    change row ∈ p.men.set m.val _ at hr
++    rcases List.mem_or_eq_of_mem_set hr with hr | rfl
++    · exact p.men_row_nodup row hr
++    · apply truncateRanks_nodup
++      rw [List.getD_eq_get p.men [] m]
++      exact p.men_row_nodup _ (List.get_mem _ _)
++  women_row_nodup := p.women_row_nodup
++
++theorem truncated_length (p : RankInput) (m threshold : Fin p.men.length) :
++    (p.truncated m threshold).men.length = p.men.length := by
++  simp only [truncateRankRows, List.length_set]
++
++theorem truncated_market (p : RankInput) (m threshold : Fin p.men.length) :
++    castFin (p.truncated_length m threshold) (p.truncated m threshold).market =
++      p.market.truncateMan m threshold := by
++  apply eq_of_pref_le
++  · intro i a b
++    change (castFin (p.truncated_length m threshold) (p.truncated m threshold).market).leM i a b ↔
++      (p.market.truncateMan m threshold).leM i a b
++    rw [castFin_leM, (p.truncated m threshold).leM_iff]
++    simp only [Fin.val_cast, optionIndex_map_cast_val]
++    by_cases hi : i = m
++    · subst i
++      rw [truncateMan_leM_self]
++      change rankAt (truncateRankRows p.men m.val threshold.val) m.val (optionIndex a).val ≤
++          rankAt (truncateRankRows p.men m.val threshold.val) m.val (optionIndex b).val ↔ _
++      simp only [rankAt_truncateRankRows_self p.men m.val threshold.val m.is_lt,
++        List.getD_eq_get p.men [] m]
++      exact truncateRanks_le_iff (p.men.get m) (p.men_row_length _ (List.get_mem _ _))
++        (p.men_row_nodup _ (List.get_mem _ _)) threshold a b
++    · rw [p.market.truncateMan_leM_of_ne m i threshold hi, p.leM_iff]
++      have hval : m.val ≠ i.val := by
++        intro h
++        exact hi (Fin.ext h.symm)
++      exact Iff.of_eq (by
++        change (rankAt (truncateRankRows p.men m.val threshold.val) i.val (optionIndex a).val ≤
++          rankAt (truncateRankRows p.men m.val threshold.val) i.val (optionIndex b).val) = _
++        rw [rankAt_truncateRankRows_other p.men m.val threshold.val i.val hval])
++  · intro w a b
++    change (castFin (p.truncated_length m threshold) (p.truncated m threshold).market).leW w a b ↔
++      (p.market.truncateMan m threshold).leW w a b
++    rw [castFin_leW, (p.truncated m threshold).leW_iff, truncateMan_leW, p.leW_iff]
++    simp only [Fin.val_cast, optionIndex_map_cast_val]
++
++end RankInput
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/RankRepresentation.lean b/MathEconLib/Matching/Classical/Marriage/RankRepresentation.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c2dbf90c4cb98eb169a36f15604394ba640ebfa
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/RankRepresentation.lean
+@@ -0,0 +1,194 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.RankSymmetry
++public import Mathlib.Data.Finset.Sort
++
++/-! Every finite balanced marriage market has an explicit rank-list presentation. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++def optionAt {n : Nat} (i : Fin (n + 1)) : Option (Fin n) :=
++  if h : i.val < n then some ⟨i.val, h⟩ else none
++
++private theorem optionAt_optionIndex {n : Nat} (o : Option (Fin n)) :
++    optionAt (optionIndex o) = o := by
++  cases o with
++  | none => simp [optionAt, optionIndex]
++  | some i => simp [optionAt, optionIndex, i.isLt]
++
++private theorem optionAt_injective {n : Nat} : Function.Injective (@optionAt n) := by
++  intro i j h
++  have hi : optionIndex (optionAt i) = i := by
++    unfold optionAt
++    split_ifs with hlt
++    · apply Fin.ext; rfl
++    · apply Fin.ext; simp only [optionIndex]; omega
++  have hj : optionIndex (optionAt j) = j := by
++    unfold optionAt
++    split_ifs with hlt
++    · apply Fin.ext; rfl
++    · apply Fin.ext; simp only [optionIndex]; omega
++  calc i = optionIndex (optionAt i) := hi.symm
++    _ = optionIndex (optionAt j) := congrArg optionIndex h
++    _ = j := hj
++
++noncomputable def orderRank {n : Nat}
++    (order : LinearOrder (Option (Fin n))) (o : Option (Fin n)) : Fin (n + 1) := by
++  letI : LinearOrder (Option (Fin n)) := order
++  letI : LE (Option (Fin n)) := order.toLE
++  letI : LT (Option (Fin n)) := order.toLT
++  exact (Fintype.orderIsoFinOfCardEq (Option (Fin n)) (by simp)).symm o
++
++private theorem orderRank_injective {n : Nat}
++    (order : LinearOrder (Option (Fin n))) :
++    Function.Injective (orderRank order) := by
++  intro a b h
++  letI : LinearOrder (Option (Fin n)) := order
++  letI : LE (Option (Fin n)) := order.toLE
++  letI : LT (Option (Fin n)) := order.toLT
++  exact (Fintype.orderIsoFinOfCardEq (Option (Fin n)) (by simp)).symm.injective h
++
++private theorem orderRank_le_iff {n : Nat}
++    (order : LinearOrder (Option (Fin n))) (a b : Option (Fin n)) :
++    (orderRank order a).val ≤ (orderRank order b).val ↔
++      @LE.le (Option (Fin n)) order.toLE a b := by
++  letI : LinearOrder (Option (Fin n)) := order
++  letI : LE (Option (Fin n)) := order.toLE
++  letI : LT (Option (Fin n)) := order.toLT
++  change (orderRank order a ≤ orderRank order b) ↔
++    @LE.le (Option (Fin n)) order.toLE a b
++  exact (Fintype.orderIsoFinOfCardEq (Option (Fin n)) (by simp)).symm.le_iff_le
++
++/-- A row with one distinct rank per optional partner, in the original order. -/
++noncomputable def rowOfOrder {n : Nat}
++    (order : LinearOrder (Option (Fin n))) : List Nat :=
++  (List.finRange (n + 1)).map (fun i => (orderRank order (optionAt i)).val)
++
++theorem rowOfOrder_length {n : Nat} (order : LinearOrder (Option (Fin n))) :
++    (rowOfOrder order).length = n + 1 := by
++  simp [rowOfOrder]
++
++theorem rowOfOrder_nodup {n : Nat} (order : LinearOrder (Option (Fin n))) :
++    (rowOfOrder order).Nodup := by
++  unfold rowOfOrder
++  apply List.Nodup.map _ (List.nodup_finRange (n + 1))
++  intro i j h
++  apply optionAt_injective
++  apply orderRank_injective order
++  exact Fin.ext h
++
++theorem rowOfOrder_bound {n : Nat} (order : LinearOrder (Option (Fin n)))
++    {r : Nat} (hr : r ∈ rowOfOrder order) : r ≤ n := by
++  obtain ⟨i, _, rfl⟩ := List.mem_map.mp hr
++  exact Nat.lt_succ_iff.mp (orderRank order (optionAt i)).isLt
++
++private theorem rowOfOrder_get {n : Nat}
++    (order : LinearOrder (Option (Fin n))) (o : Option (Fin n)) :
++    (rowOfOrder order).getD (optionIndex o).val 0 =
++      (orderRank order o).val := by
++  have hi : (optionIndex o).val < (rowOfOrder order).length := by
++    rw [rowOfOrder_length]
++    exact (optionIndex o).isLt
++  rw [List.getD_eq_getElem _ _ hi]
++  unfold rowOfOrder at *
++  simp only [List.getElem_map, List.getElem_finRange]
++  cases o with
++  | none => simp [optionAt, optionIndex, Fin.cast]
++  | some i => simp [optionAt, optionIndex, Fin.cast, i.isLt]
++
++/-- Construct rank rows from the market's actual finite linear orders. -/
++noncomputable def rankRepresentation {n : Nat}
++    (mkt : MarriageMarket (Fin n) (Fin n)) : RankInput where
++  men := (List.finRange n).map (fun m => rowOfOrder (mkt.prefM m))
++  women := (List.finRange n).map (fun w => rowOfOrder (mkt.prefW w))
++  women_length := by simp
++  men_row_length := by
++    intro row hr
++    obtain ⟨m, _, rfl⟩ := List.mem_map.mp hr
++    simpa using rowOfOrder_length (mkt.prefM m)
++  women_row_length := by
++    intro row hr
++    obtain ⟨w, _, rfl⟩ := List.mem_map.mp hr
++    simpa using rowOfOrder_length (mkt.prefW w)
++  men_row_nodup := by
++    intro row hr
++    obtain ⟨m, _, rfl⟩ := List.mem_map.mp hr
++    exact rowOfOrder_nodup _
++  women_row_nodup := by
++    intro row hr
++    obtain ⟨w, _, rfl⟩ := List.mem_map.mp hr
++    exact rowOfOrder_nodup _
++
++theorem rankRepresentation_length {n : Nat}
++    (mkt : MarriageMarket (Fin n) (Fin n)) :
++    (rankRepresentation mkt).men.length = n := by
++  simp [rankRepresentation]
++
++theorem rankRepresentation_bound {n : Nat}
++    (mkt : MarriageMarket (Fin n) (Fin n)) :
++    (∀ row ∈ (rankRepresentation mkt).men, ∀ r ∈ row, r ≤ n) ∧
++    (∀ row ∈ (rankRepresentation mkt).women, ∀ r ∈ row, r ≤ n) := by
++  constructor
++  · intro row hr r hrr
++    obtain ⟨m, _, rfl⟩ := List.mem_map.mp hr
++    exact rowOfOrder_bound _ hrr
++  · intro row hr r hrr
++    obtain ⟨w, _, rfl⟩ := List.mem_map.mp hr
++    exact rowOfOrder_bound _ hrr
++
++private theorem rankAt_rankRepresentation_men {n : Nat}
++    (mkt : MarriageMarket (Fin n) (Fin n)) (m : Fin n)
++    (o : Option (Fin n)) :
++    rankAt (rankRepresentation mkt).men m.val (optionIndex o).val =
++      (orderRank (mkt.prefM m) o).val := by
++  unfold rankAt rankRepresentation
++  have hi : m.val < ((List.finRange n).map
++      (fun m => rowOfOrder (mkt.prefM m))).length := by
++    simp
++  rw [List.getD_eq_getElem _ _ hi]
++  simp only [List.getElem_map, List.getElem_finRange]
++  exact rowOfOrder_get _ _
++
++private theorem rankAt_rankRepresentation_women {n : Nat}
++    (mkt : MarriageMarket (Fin n) (Fin n)) (w : Fin n)
++    (o : Option (Fin n)) :
++    rankAt (rankRepresentation mkt).women w.val (optionIndex o).val =
++      (orderRank (mkt.prefW w) o).val := by
++  unfold rankAt rankRepresentation
++  have hi : w.val < ((List.finRange n).map
++      (fun w => rowOfOrder (mkt.prefW w))).length := by
++    simp
++  rw [List.getD_eq_getElem _ _ hi]
++  simp only [List.getElem_map, List.getElem_finRange]
++  exact rowOfOrder_get _ _
++
++/-- The representation denotes exactly the original market. -/
++theorem rankRepresentation_market {n : Nat}
++    (mkt : MarriageMarket (Fin n) (Fin n)) :
++    castFin (rankRepresentation_length mkt) (rankRepresentation mkt).market = mkt := by
++  apply eq_of_pref_le
++  · intro m a b
++    change (castFin (rankRepresentation_length mkt)
++      (rankRepresentation mkt).market).leM m a b ↔ mkt.leM m a b
++    rw [castFin_leM, (rankRepresentation mkt).leM_iff]
++    simp only [optionIndex_map_cast_val]
++    simp only [Fin.cast]
++    rw [rankAt_rankRepresentation_men, rankAt_rankRepresentation_men]
++    exact orderRank_le_iff (mkt.prefM m) a b
++  · intro w a b
++    change (castFin (rankRepresentation_length mkt)
++      (rankRepresentation mkt).market).leW w a b ↔ mkt.leW w a b
++    rw [castFin_leW, (rankRepresentation mkt).leW_iff]
++    simp only [optionIndex_map_cast_val]
++    simp only [Fin.cast]
++    rw [rankAt_rankRepresentation_women, rankAt_rankRepresentation_women]
++    exact orderRank_le_iff (mkt.prefW w) a b
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/RankSymmetry.lean b/MathEconLib/Matching/Classical/Marriage/RankSymmetry.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..e38012f7b367c17d5627c001efaf71a3367ee0da
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/RankSymmetry.lean
+@@ -0,0 +1,93 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.RankInput
++public import MathEconLib.Matching.Classical.Marriage.DeferredAcceptanceComputable
++
++/-! Side exchange and equal finite dimensions for explicit rank inputs. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++theorem eq_of_pref_le {M W : Type*} (A B : MarriageMarket M W)
++    (hM : ∀ m a b, (A.prefM m).le a b ↔ (B.prefM m).le a b)
++    (hW : ∀ w a b, (A.prefW w).le a b ↔ (B.prefW w).le a b) : A = B := by
++  have hm : A.prefM = B.prefM := funext (fun m => LinearOrder.ext (hM m))
++  have hw : A.prefW = B.prefW := funext (fun w => LinearOrder.ext (hW w))
++  cases A
++  cases B
++  cases hm
++  cases hw
++  rfl
++
++def castFin {a b : Nat} (h : a = b) (mkt : MarriageMarket (Fin a) (Fin a)) :
++    MarriageMarket (Fin b) (Fin b) := h ▸ mkt
++
++theorem castFin_leM {a b : Nat} (h : a = b) (mkt : MarriageMarket (Fin a) (Fin a))
++    (m : Fin b) (x y : Option (Fin b)) :
++    (castFin h mkt).leM m x y ↔
++      mkt.leM (Fin.cast h.symm m) (x.map (Fin.cast h.symm)) (y.map (Fin.cast h.symm)) := by
++  cases h
++  simp [castFin]
++
++theorem castFin_leW {a b : Nat} (h : a = b) (mkt : MarriageMarket (Fin a) (Fin a))
++    (w : Fin b) (x y : Option (Fin b)) :
++    (castFin h mkt).leW w x y ↔
++      mkt.leW (Fin.cast h.symm w) (x.map (Fin.cast h.symm)) (y.map (Fin.cast h.symm)) := by
++  cases h
++  simp [castFin]
++
++theorem castFin_galeShapley_apply {a b : Nat} (h : a = b)
++    (mkt : MarriageMarket (Fin a) (Fin a)) (m w : Fin b) :
++    (castFin h mkt).galeShapleyComputable m = some w ↔
++      mkt.galeShapleyComputable (Fin.cast h.symm m) = some (Fin.cast h.symm w) := by
++  cases h
++  rfl
++
++theorem castFin_womanGaleShapley_apply {a b : Nat} (h : a = b)
++    (mkt : MarriageMarket (Fin a) (Fin a)) (m w : Fin b) :
++    (castFin h mkt).womanGaleShapleyComputable m = some w ↔
++      mkt.womanGaleShapleyComputable (Fin.cast h.symm m) = some (Fin.cast h.symm w) := by
++  cases h
++  rfl
++
++theorem optionIndex_map_cast_val {a b : Nat} (h : a = b) (o : Option (Fin a)) :
++    (optionIndex (o.map (Fin.cast h))).val = (optionIndex o).val := by
++  cases h
++  cases o <;> rfl
++
++namespace RankInput
++
++@[reducible] def swap (p : RankInput) : RankInput where
++  men := p.women
++  women := p.men
++  women_length := p.women_length.symm
++  men_row_length := by
++    intro row hr
++    rw [p.women_length]
++    exact p.women_row_length row hr
++  women_row_length := by
++    intro row hr
++    rw [p.women_length]
++    exact p.men_row_length row hr
++  men_row_nodup := p.women_row_nodup
++  women_row_nodup := p.men_row_nodup
++
++theorem swap_market (p : RankInput) : castFin p.women_length p.swap.market = p.market.symm := by
++  apply eq_of_pref_le
++  · intro m a b
++    change (castFin p.women_length p.swap.market).leM m a b ↔ p.market.leW m a b
++    rw [castFin_leM, p.swap.leM_iff, p.leW_iff]
++    cases a <;> cases b <;> simp [swap, optionIndex, p.women_length]
++  · intro w a b
++    change (castFin p.women_length p.swap.market).leW w a b ↔ p.market.leM w a b
++    rw [castFin_leW, p.swap.leW_iff, p.leM_iff]
++    cases a <;> cases b <;> simp [swap, optionIndex, p.women_length]
++
++end RankInput
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/RankTruncation.lean b/MathEconLib/Matching/Classical/Marriage/RankTruncation.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..a20f4d94ed1c62f380892342ef7652d0850a5c27
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/RankTruncation.lean
+@@ -0,0 +1,149 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.RankChoice
++public import MathEconLib.Matching.Classical.Marriage.Truncation
++public import Mathlib.Algebra.BigOperators.Group.List.Basic
++public import Mathlib.Tactic.IntervalCases
++
++/-! Rank-list implementation of the existing threshold truncation. -/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++def rankBand (row : List Nat) (threshold outside i score : Nat) : Nat :=
++  if i = outside then 1 else if row.getD threshold 0 ≤ score then 2 else 0
++
++def truncateRanks (row : List Nat) (threshold outside : Nat) : List Nat :=
++  (row.zip (List.range row.length)).map (fun vi =>
++    rankBand row threshold outside vi.2 vi.1 * (row.sum + 1) + vi.1)
++
++def truncateRankRows (rows : List (List Nat)) (m threshold : Nat) : List (List Nat) :=
++  rows.set m (truncateRanks (rows.getD m []) threshold rows.length)
++
++theorem getD_set_same {α : Type} (xs : List α) (i : Nat) (a d : α) (hi : i < xs.length) :
++    (xs.set i a).getD i d = a := by
++  simp only [List.getD, List.getElem?_set_self hi, Option.getD_some]
++
++theorem getD_set_other {α : Type} (xs : List α) (i j : Nat) (a d : α) (h : i ≠ j) :
++    (xs.set i a).getD j d = xs.getD j d := by
++  simp only [List.getD, List.getElem?_set_ne h]
++
++theorem rankAt_truncateRankRows_self (rows : List (List Nat)) (m t : Nat) (hm : m < rows.length) :
++    rankAt (truncateRankRows rows m t) m =
++      fun j => (truncateRanks (rows.getD m []) t rows.length).getD j 0 := by
++  funext j
++  unfold rankAt truncateRankRows
++  rw [getD_set_same _ _ _ _ hm]
++
++theorem rankAt_truncateRankRows_other (rows : List (List Nat)) (m t i : Nat) (h : m ≠ i) :
++    rankAt (truncateRankRows rows m t) i = rankAt rows i := by
++  funext j
++  unfold rankAt truncateRankRows
++  rw [getD_set_other _ _ _ _ _ h]
++
++@[simp] theorem truncateRanks_length (row : List Nat) (threshold outside : Nat) :
++    (truncateRanks row threshold outside).length = row.length := by
++  simp [truncateRanks]
++
++private theorem member_le_sum (row : List Nat) (v : Nat) (hv : v ∈ row) : v ≤ row.sum := by
++  induction row with
++  | nil => cases hv
++  | cons x xs ih =>
++    rcases List.mem_cons.mp hv with rfl | hv
++    · simp
++    · have h := ih hv
++      simp only [List.sum_cons]
++      omega
++
++theorem rank_lt_base (row : List Nat) (i : Nat) (hi : i < row.length) :
++    row.getD i 0 < row.sum + 1 := by
++  rw [List.getD_eq_getElem row 0 hi]
++  exact Nat.lt_succ_iff.mpr (member_le_sum row _ (List.getElem_mem hi))
++
++theorem truncateRanks_getD (row : List Nat) (threshold outside i : Nat) (hi : i < row.length) :
++    (truncateRanks row threshold outside).getD i 0 =
++      rankBand row threshold outside i (row.getD i 0) * (row.sum + 1) + row.getD i 0 := by
++  rw [List.getD_eq_getElem _ 0 (by simpa using hi), List.getD_eq_getElem row 0 hi]
++  simp only [truncateRanks, List.getElem_map, List.getElem_zip, List.getElem_range]
++
++theorem truncateRanks_mod (row : List Nat) (threshold outside i : Nat) (hi : i < row.length) :
++    (truncateRanks row threshold outside).getD i 0 % (row.sum + 1) = row.getD i 0 := by
++  rw [truncateRanks_getD row threshold outside i hi]
++  simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_self, Nat.mul_zero, Nat.zero_mod,
++    Nat.zero_add, Nat.mod_mod]
++  exact Nat.mod_eq_of_lt (rank_lt_base row i hi)
++
++theorem truncateRanks_map_mod (row : List Nat) (threshold outside : Nat) :
++    (truncateRanks row threshold outside).map (fun v => v % (row.sum + 1)) = row := by
++  apply List.ext_getElem
++  · simp
++  · intro i hi hj
++    simp only [List.getElem_map]
++    have h := truncateRanks_mod row threshold outside i hj
++    rw [List.getD_eq_getElem _ 0 (by simpa using hj), List.getD_eq_getElem row 0 hj] at h
++    exact h
++
++theorem truncateRanks_nodup (row : List Nat) (threshold outside : Nat) (hnd : row.Nodup) :
++    (truncateRanks row threshold outside).Nodup := by
++  have h : ((truncateRanks row threshold outside).map (fun v => v % (row.sum + 1))).Nodup := by
++    rw [truncateRanks_map_mod]
++    exact hnd
++  exact List.Nodup.of_map _ h
++
++theorem rankBand_le_two (row : List Nat) (threshold outside i score : Nat) :
++    rankBand row threshold outside i score ≤ 2 := by
++  unfold rankBand
++  split_ifs <;> omega
++
++theorem rank_lex_le {B a b x y : Nat} (ha : a ≤ 2) (hb : b ≤ 2)
++    (hx : x < B) (hy : y < B) :
++    a * B + x ≤ b * B + y ↔ a < b ∨ a = b ∧ x ≤ y := by
++  interval_cases a <;> interval_cases b <;> omega
++
++theorem rankBand_eq_tag {n : Nat} (row : List Nat) (hlen : row.length = n + 1)
++    (hnd : row.Nodup) (threshold : Fin n) (o : Option (Fin n)) :
++    rankBand row threshold.val n (optionIndex o).val (row.getD (optionIndex o).val 0) =
++      truncationTag (rankRowOrder row hlen hnd) threshold o := by
++  cases o with
++  | none => simp [rankBand, optionIndex, truncationTag]
++  | some w =>
++    have hne : w.val ≠ n := Nat.ne_of_lt w.is_lt
++    simp only [rankBand, optionIndex, Fin.val_castSucc, hne, ↓reduceIte, truncationTag]
++    rfl
++
++theorem truncateRanks_le_iff {n : Nat} (row : List Nat) (hlen : row.length = n + 1)
++    (hnd : row.Nodup) (threshold : Fin n) (a b : Option (Fin n)) :
++    @LE.le _ (rankRowOrder (truncateRanks row threshold.val n)
++      (by simpa using hlen) (truncateRanks_nodup _ _ _ hnd)).toLE a b ↔
++    @LE.le _ (truncateOptionOrder (rankRowOrder row hlen hnd) threshold).toLE a b := by
++  let : LE (Option (Fin n)) := (rankRowOrder row hlen hnd).toLE
++  let := rankRowOrder row hlen hnd
++  have ha : (optionIndex a).val < row.length := by rw [hlen]; exact (optionIndex a).is_lt
++  have hb : (optionIndex b).val < row.length := by rw [hlen]; exact (optionIndex b).is_lt
++  change (truncateRanks row threshold.val n).getD (optionIndex a).val 0 ≤
++      (truncateRanks row threshold.val n).getD (optionIndex b).val 0 ↔
++      truncationKey (rankRowOrder row hlen hnd) threshold a ≤
++        truncationKey (rankRowOrder row hlen hnd) threshold b
++  rw [truncateRanks_getD _ _ _ _ ha, truncateRanks_getD _ _ _ _ hb,
++    rank_lex_le (rankBand_le_two _ _ _ _ _) (rankBand_le_two _ _ _ _ _)
++      (rank_lt_base row _ ha) (rank_lt_base row _ hb),
++    rankBand_eq_tag row hlen hnd threshold a, rankBand_eq_tag row hlen hnd threshold b]
++  simp only [truncationKey, Prod.Lex.toLex_le_toLex]
++  rfl
++
++theorem truncateRanks_order {n : Nat} (row : List Nat) (hlen : row.length = n + 1)
++    (hnd : row.Nodup) (threshold : Fin n) :
++    rankRowOrder (truncateRanks row threshold.val n) (by simpa using hlen)
++      (truncateRanks_nodup _ _ _ hnd) =
++        truncateOptionOrder (rankRowOrder row hlen hnd) threshold := by
++  apply LinearOrder.ext
++  intro a b
++  exact truncateRanks_le_iff row hlen hnd threshold a b
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/ThresholdComputation.lean b/MathEconLib/Matching/Classical/Marriage/ThresholdComputation.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..c38ebb80c01ad90ba6bb0b6d4fe06fed0105269c
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/ThresholdComputation.lean
+@@ -0,0 +1,227 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.Truncation
++public import MathEconLib.Matching.Classical.Marriage.DeferredAcceptanceComputable
++public import MathEconLib.Matching.Classical.Marriage.OrderIdeals
++public import MathEconLib.Matching.Classical.Marriage.LoneWolf
++
++/-!
++# Computing stable threshold generators by deferred acceptance
++
++One woman-proposing DA run on a truncated market gives the least stable
++realization of every feasible acceptable threshold.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++universe u v
++
++variable {M : Type u} {W : Type v} [DecidableEq M] (mkt : MarriageMarket M W)
++
++omit [DecidableEq M] in
++private theorem exists_partner_of_threshold {μ : M ≃. W} {m : M} {threshold : W}
++    (hacceptable : mkt.ltM m none (some threshold))
++    (hthreshold : mkt.leM m (some threshold) (μ m)) : ∃ w, μ m = some w := by
++  let := mkt.prefM m
++  cases h : μ m with
++  | none =>
++    rw [h] at hthreshold
++    exact ((not_le_of_gt hacceptable) hthreshold).elim
++  | some w => exact ⟨w, rfl⟩
++
++variable [Fintype M] [Fintype W] [DecidableEq W]
++
++/-- A single executable woman-proposing DA run on the truncated market. -/
++def thresholdDA (m : M) (threshold : W) : M ≃. W :=
++  (mkt.truncateMan m threshold).womanGaleShapleyComputable
++
++theorem thresholdDA_spec (m : M) (threshold : W)
++    (hacceptable : mkt.ltM m none (some threshold))
++    (hfeasible : ∃ μ : mkt.StableMatching,
++      mkt.leM m (some threshold) (μ.matching m)) :
++    mkt.IsStableMatching (mkt.thresholdDA m threshold) ∧
++      mkt.leM m (some threshold) (mkt.thresholdDA m threshold m) := by
++  let := mkt.prefM m
++  obtain ⟨μ, hμthreshold⟩ := hfeasible
++  obtain ⟨current, hcurrent⟩ := exists_partner_of_threshold mkt hacceptable hμthreshold
++  have hμtruncated : (mkt.truncateMan m threshold).IsStableMatching μ.matching :=
++    stable_truncateMan_of_stable mkt μ.isStable hcurrent (by simpa only [hcurrent] using hμthreshold)
++  have hDA : (mkt.truncateMan m threshold).IsStableMatching
++      (mkt.thresholdDA m threshold) :=
++    (mkt.truncateMan m threshold).stable_womanGaleShapleyComputable
++  have hnotnone : mkt.thresholdDA m threshold m ≠ none := by
++    intro hnone
++    have hμnone := ((mkt.truncateMan m threshold).eq_none_iff_of_stable hDA hμtruncated m).mp hnone
++    rw [hcurrent] at hμnone
++    cases hμnone
++  cases h : mkt.thresholdDA m threshold m with
++  | none => exact (hnotnone h).elim
++  | some w =>
++    refine ⟨stable_of_stable_truncateMan mkt (le_of_lt hacceptable) hDA h, ?_⟩
++    have hir := hDA.1.1 m
++    change (mkt.truncateMan m threshold).leM m none (mkt.thresholdDA m threshold m) at hir
++    rw [h] at hir
++    exact (truncateMan_none_le_some mkt m threshold w).mp hir
++
++theorem thresholdDA_le {m : M} {threshold : W}
++    (hacceptable : mkt.ltM m none (some threshold))
++    (ν : mkt.StableMatching) (hν : mkt.leM m (some threshold) (ν.matching m)) (m' : M) :
++    mkt.leM m' (mkt.thresholdDA m threshold m') (ν.matching m') := by
++  let := mkt.prefM m
++  obtain ⟨current, hcurrent⟩ := exists_partner_of_threshold mkt hacceptable hν
++  have hνtruncated := stable_truncateMan_of_stable mkt ν.isStable hcurrent
++    (by simpa only [hcurrent] using hν)
++  have hle := (mkt.truncateMan m threshold).womanGaleShapleyComputable_manPessimal hνtruncated m'
++  by_cases hm : m' = m
++  · subst m'
++    have hspec := thresholdDA_spec mkt m threshold hacceptable ⟨ν, hν⟩
++    obtain ⟨w, hw⟩ := exists_partner_of_threshold mkt hacceptable hspec.2
++    change (mkt.truncateMan m threshold).leM m (mkt.thresholdDA m threshold m) (ν.matching m) at hle
++    rw [hw, hcurrent] at hle ⊢
++    exact (truncateMan_leM_some_some mkt m m threshold w current).mp hle
++  · exact (truncateMan_leM_of_ne mkt m m' threshold hm _ _).mp hle
++
++/-- The executable matching, packaged with its proved original-market stability. -/
++def thresholdDAStable (m : M) (threshold : W)
++    (hacceptable : mkt.ltM m none (some threshold))
++    (hfeasible : ∃ μ : mkt.StableMatching,
++      mkt.leM m (some threshold) (μ.matching m)) : mkt.StableMatching where
++  matching := mkt.thresholdDA m threshold
++  isStable := (thresholdDA_spec mkt m threshold hacceptable hfeasible).1
++
++/-- A feasible intrinsic threshold generator is computed by one DA run. -/
++theorem thresholdDAStable_eq_generator (m : M) (threshold : W)
++    (hacceptable : mkt.ltM m none (some threshold))
++    (hfeasible : ∃ μ : mkt.StableMatching,
++      mkt.leM m (some threshold) (μ.matching m)) :
++    thresholdDAStable mkt m threshold hacceptable hfeasible =
++      StableMatching.thresholdGenerator mkt m (some threshold) := by
++  apply le_antisymm
++  · apply (StableMatching.le_iff_menWeaklyPrefer mkt).mpr
++    intro m'
++    exact thresholdDA_le mkt hacceptable _
++      (StableMatching.thresholdGenerator_meets mkt hfeasible) m'
++  · exact StableMatching.thresholdGenerator_le mkt
++      (thresholdDA_spec mkt m threshold hacceptable hfeasible).2
++
++theorem thresholdDA_eq_generator_matching (m : M) (threshold : W)
++    (hacceptable : mkt.ltM m none (some threshold))
++    (hfeasible : ∃ μ : mkt.StableMatching,
++      mkt.leM m (some threshold) (μ.matching m)) :
++    mkt.thresholdDA m threshold =
++      (StableMatching.thresholdGenerator mkt m (some threshold)).matching := by
++  exact congrArg StableMatching.matching
++    (thresholdDAStable_eq_generator mkt m threshold hacceptable hfeasible)
++
++/-- Compute a stable threshold candidate, rejecting unacceptable and infeasible
++thresholds by comparisons and the outcome of a single finite DA run. -/
++def thresholdCandidate (m : M) (threshold : W) : Option mkt.StableMatching := by
++  let := mkt.prefM m
++  exact if hacceptable : none < some threshold then
++    let μ := mkt.thresholdDA m threshold
++    if hnone : μ m = none then none else
++      some ⟨μ, by
++        have hDA : (mkt.truncateMan m threshold).IsStableMatching μ :=
++          (mkt.truncateMan m threshold).stable_womanGaleShapleyComputable
++        cases h : μ m with
++        | none => exact (hnone h).elim
++        | some w => exact stable_of_stable_truncateMan mkt hacceptable.le hDA h⟩
++  else none
++
++theorem thresholdCandidate_eq_some (m : M) (threshold : W)
++    (hacceptable : mkt.ltM m none (some threshold))
++    (hfeasible : ∃ μ : mkt.StableMatching,
++      mkt.leM m (some threshold) (μ.matching m)) :
++    mkt.thresholdCandidate m threshold =
++      some (thresholdDAStable mkt m threshold hacceptable hfeasible) := by
++  let := mkt.prefM m
++  have hacc : (none : Option W) < some threshold := hacceptable
++  obtain ⟨w, hw⟩ := exists_partner_of_threshold mkt hacceptable
++    (thresholdDA_spec mkt m threshold hacceptable hfeasible).2
++  have hnone : mkt.thresholdDA m threshold m ≠ none := by
++    rw [hw]
++    exact Option.some_ne_none _
++  simp only [thresholdCandidate, dite_eq_left hacc, dite_eq_right hnone]
++  rfl
++
++theorem thresholdCandidate_eq_of_generator (m : M) (threshold : W)
++    (ν : mkt.StableMatching) (hacceptable : mkt.ltM m none (some threshold))
++    (hν : mkt.leM m (some threshold) (ν.matching m))
++    (hgenerator : StableMatching.thresholdGenerator mkt m (some threshold) = ν) :
++    mkt.thresholdCandidate m threshold = some ν := by
++  rw [thresholdCandidate_eq_some mkt m threshold hacceptable ⟨ν, hν⟩,
++    thresholdDAStable_eq_generator, hgenerator]
++
++theorem thresholdCandidate_some_spec {m : M} {threshold : W} {μ : mkt.StableMatching}
++    (hresult : mkt.thresholdCandidate m threshold = some μ) :
++    mkt.ltM m none (some threshold) ∧
++      StableMatching.MeetsThreshold mkt m (some threshold) μ ∧
++      StableMatching.thresholdGenerator mkt m (some threshold) = μ := by
++  let := mkt.prefM m
++  unfold thresholdCandidate at hresult
++  dsimp only at hresult
++  split at hresult
++  · rename_i hacceptable
++    split at hresult
++    · cases hresult
++    · rename_i hnone
++      cases hresult
++      have hDA : (mkt.truncateMan m threshold).IsStableMatching (mkt.thresholdDA m threshold) :=
++        (mkt.truncateMan m threshold).stable_womanGaleShapleyComputable
++      have hstable : mkt.IsStableMatching (mkt.thresholdDA m threshold) := by
++        cases h : mkt.thresholdDA m threshold m with
++        | none => exact (hnone h).elim
++        | some w => exact stable_of_stable_truncateMan mkt hacceptable.le hDA h
++      have hthreshold : mkt.leM m (some threshold) (mkt.thresholdDA m threshold m) := by
++        cases h : mkt.thresholdDA m threshold m with
++        | none => exact (hnone h).elim
++        | some w =>
++          apply (truncateMan_none_le_some mkt m threshold w).mp
++          have hir : (mkt.truncateMan m threshold).leM m none (mkt.thresholdDA m threshold m) :=
++            hDA.1.1 m
++          rw [h] at hir
++          exact hir
++      refine ⟨hacceptable, hthreshold, ?_⟩
++      exact (thresholdDAStable_eq_generator mkt m threshold hacceptable
++        ⟨⟨mkt.thresholdDA m threshold, hstable⟩, hthreshold⟩).symm
++  · cases hresult
++
++omit [DecidableEq M] [DecidableEq W] in
++/-- Every feasible coordinate generator except bottom is join-prime. -/
++theorem thresholdGenerator_supPrime {m : M} {o : Option W}
++    (hfeasible : ∃ μ : mkt.StableMatching, StableMatching.MeetsThreshold mkt m o μ)
++    (hne : StableMatching.thresholdGenerator mkt m o ≠ ⊥) :
++    SupPrime (StableMatching.thresholdGenerator mkt m o) := by
++  let := mkt.prefM m
++  refine ⟨?_, ?_⟩
++  · simpa only [isMin_iff_eq_bot] using hne
++  · intro μ ν hle
++    have hgen := StableMatching.thresholdGenerator_meets mkt hfeasible
++    have hcoord := (StableMatching.le_iff_menWeaklyPrefer mkt).mp hle m
++    have hthreshold : o ≤ (μ ⊔ ν).matching m := hgen.trans hcoord
++    rw [StableMatching.matching_sup_apply] at hthreshold
++    change o ≤ max (μ.matching m) (ν.matching m) at hthreshold
++    rcases le_max_iff.mp hthreshold with hμ | hν
++    · exact Or.inl (StableMatching.thresholdGenerator_le mkt hμ)
++    · exact Or.inr (StableMatching.thresholdGenerator_le mkt hν)
++
++/-- A finite candidate list obtained by running the explicit threshold routine
++once on each supplied man/partner pair. No stable matching enumeration is used. -/
++def thresholdCandidates (men : List M) (women : List W) : List mkt.StableMatching :=
++  (men.product women).filterMap (fun p => mkt.thresholdCandidate p.1 p.2)
++
++theorem thresholdCandidates_length (men : List M) (women : List W) :
++    (mkt.thresholdCandidates men women).length ≤ men.length * women.length := by
++  calc
++    (mkt.thresholdCandidates men women).length ≤ (men.product women).length :=
++      List.length_filterMap_le _ _
++    _ = men.length * women.length := List.length_product men women
++
++end MathEconLib.Matching.MarriageMarket
+diff --git a/MathEconLib/Matching/Classical/Marriage/Truncation.lean b/MathEconLib/Matching/Classical/Marriage/Truncation.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ca951906f6437ca5432f1e17bc84803b5729064
+--- /dev/null
++++ b/MathEconLib/Matching/Classical/Marriage/Truncation.lean
+@@ -0,0 +1,218 @@
++/-
++Copyright (c) 2026 MathEconLib contributors. All rights reserved.
++Released under Apache 2.0 license as described in the file LICENSE.
++Authors: MathEconLib contributors
++-/
++module
++
++public import MathEconLib.Matching.Classical.Marriage.Basic
++public import Mathlib.Order.Prod.Lex.Basic
++
++/-!
++# Truncating one man's list at a partner threshold
++
++The transformation moves his outside option immediately below the threshold,
++while preserving every comparison between partners. The other participants'
++preferences are unchanged. It is a transformation of the existing marriage
++market model, with no additional market structure.
++-/
++
++@[expose] public section
++
++namespace MathEconLib.Matching.MarriageMarket
++
++universe u v
++
++variable {M : Type u} {W : Type v}
++
++/-- Three ordered bands: discarded partners, outside option, retained partners. -/
++def truncationTag (pref : LinearOrder (Option W)) (threshold : W) : Option W → Nat :=
++  let := pref
++  fun o => match o with
++    | none => 1
++    | some w => if some threshold ≤ some w then 2 else 0
++
++/-- The comparison key retains the original ordering within each partner band. -/
++def truncationKey (pref : LinearOrder (Option W)) (threshold : W)
++    (o : Option W) : Nat ×ₗ Option W :=
++  toLex (truncationTag pref threshold o, o)
++
++/-- Keep the partner order and place `none` just below the given partner. -/
++@[instance_reducible]
++def truncateOptionOrder (pref : LinearOrder (Option W)) (threshold : W) :
++    LinearOrder (Option W) := by
++  let := pref
++  apply LinearOrder.lift' (truncationKey pref threshold)
++  intro x y h
++  exact congrArg (fun z => (ofLex z).2) h
++
++theorem truncateOptionOrder_some_le_some (pref : LinearOrder (Option W))
++    (threshold x y : W) :
++    @LE.le (Option W) (truncateOptionOrder pref threshold).toLE (some x) (some y) ↔
++      @LE.le (Option W) pref.toLE (some x) (some y) := by
++  let := pref
++  change truncationKey pref threshold (some x) ≤ truncationKey pref threshold (some y) ↔ _
++  simp only [truncationKey, Prod.Lex.toLex_le_toLex]
++  by_cases hx : some threshold ≤ some x
++  · by_cases hy : some threshold ≤ some y
++    · simp [truncationTag, hx, hy]
++    · have hxy : ¬ some x ≤ some y := fun h => hy (hx.trans h)
++      simp [truncationTag, hx, hy, hxy]
++  · by_cases hy : some threshold ≤ some y
++    · have hxy : some x ≤ some y := (lt_of_not_ge hx).le.trans hy
++      simp [truncationTag, hx, hy, hxy]
++    · simp [truncationTag, hx, hy]
++
++theorem truncateOptionOrder_some_lt_some (pref : LinearOrder (Option W))
++    (threshold x y : W) :
++    @LT.lt (Option W) (truncateOptionOrder pref threshold).toLT (some x) (some y) ↔
++      @LT.lt (Option W) pref.toLT (some x) (some y) := by
++  rw [@lt_iff_le_not_ge (Option W) (truncateOptionOrder pref threshold).toPreorder,
++    @lt_iff_le_not_ge (Option W) pref.toPreorder,
++    truncateOptionOrder_some_le_some, truncateOptionOrder_some_le_some]
++
++theorem truncateOptionOrder_none_le_some (pref : LinearOrder (Option W))
++    (threshold w : W) :
++    @LE.le (Option W) (truncateOptionOrder pref threshold).toLE none (some w) ↔
++      @LE.le (Option W) pref.toLE (some threshold) (some w) := by
++  let := pref
++  change truncationKey pref threshold none ≤ truncationKey pref threshold (some w) ↔ _
++  simp only [truncationKey, Prod.Lex.toLex_le_toLex]
++  by_cases h : some threshold ≤ some w <;> simp [truncationTag, h]
++
++theorem truncateOptionOrder_some_le_none (pref : LinearOrder (Option W))
++    (threshold w : W) :
++    @LE.le (Option W) (truncateOptionOrder pref threshold).toLE (some w) none ↔
++      ¬ @LE.le (Option W) pref.toLE (some threshold) (some w) := by
++  let := pref
++  change truncationKey pref threshold (some w) ≤ truncationKey pref threshold none ↔ _
++  simp only [truncationKey, Prod.Lex.toLex_le_toLex]
++  by_cases h : some threshold ≤ some w <;> simp [truncationTag, h]
++
++variable [DecidableEq M] (mkt : MarriageMarket M W)
++
++/-- Truncate a single man's acceptable list, retaining all other preferences. -/
++def truncateMan (m : M) (threshold : W) : MarriageMarket M W where
++  prefM m' := if m' = m then truncateOptionOrder (mkt.prefM m') threshold else mkt.prefM m'
++  prefW := mkt.prefW
++
++theorem truncateMan_prefM_self (m : M) (threshold : W) :
++    (mkt.truncateMan m threshold).prefM m = truncateOptionOrder (mkt.prefM m) threshold := by
++  simp [truncateMan]
++
++theorem truncateMan_prefM_of_ne (m m' : M) (threshold : W) (hne : m' ≠ m) :
++    (mkt.truncateMan m threshold).prefM m' = mkt.prefM m' := by
++  simp [truncateMan, hne]
++
++@[simp] theorem truncateMan_leW (m : M) (threshold : W) (w : W) (x y : Option M) :
++    (mkt.truncateMan m threshold).leW w x y ↔ mkt.leW w x y := Iff.rfl
++
++@[simp] theorem truncateMan_ltW (m : M) (threshold : W) (w : W) (x y : Option M) :
++    (mkt.truncateMan m threshold).ltW w x y ↔ mkt.ltW w x y := Iff.rfl
++
++theorem truncateMan_leM_of_ne (m m' : M) (threshold : W) (hne : m' ≠ m)
++    (x y : Option W) :
++    (mkt.truncateMan m threshold).leM m' x y ↔ mkt.leM m' x y := by
++  change @LE.le _ ((mkt.truncateMan m threshold).prefM m').toLE x y ↔ _
++  rw [truncateMan_prefM_of_ne mkt m m' threshold hne]
++  rfl
++
++theorem truncateMan_ltM_of_ne (m m' : M) (threshold : W) (hne : m' ≠ m)
++    (x y : Option W) :
++    (mkt.truncateMan m threshold).ltM m' x y ↔ mkt.ltM m' x y := by
++  change @LT.lt _ ((mkt.truncateMan m threshold).prefM m').toLT x y ↔ _
++  rw [truncateMan_prefM_of_ne mkt m m' threshold hne]
++  rfl
++
++theorem truncateMan_leM_some_some (m m' : M) (threshold x y : W) :
++    (mkt.truncateMan m threshold).leM m' (some x) (some y) ↔
++      mkt.leM m' (some x) (some y) := by
++  by_cases h : m' = m
++  · subst m'
++    change @LE.le _ ((mkt.truncateMan m threshold).prefM m).toLE (some x) (some y) ↔ _
++    rw [truncateMan_prefM_self]
++    exact truncateOptionOrder_some_le_some _ _ _ _
++  · exact truncateMan_leM_of_ne mkt m m' threshold h _ _
++
++theorem truncateMan_ltM_some_some (m m' : M) (threshold x y : W) :
++    (mkt.truncateMan m threshold).ltM m' (some x) (some y) ↔
++      mkt.ltM m' (some x) (some y) := by
++  by_cases h : m' = m
++  · subst m'
++    change @LT.lt _ ((mkt.truncateMan m threshold).prefM m).toLT (some x) (some y) ↔ _
++    rw [truncateMan_prefM_self]
++    exact truncateOptionOrder_some_lt_some _ _ _ _
++  · exact truncateMan_ltM_of_ne mkt m m' threshold h _ _
++
++theorem truncateMan_none_le_some (m : M) (threshold w : W) :
++    (mkt.truncateMan m threshold).leM m none (some w) ↔
++      mkt.leM m (some threshold) (some w) := by
++  change @LE.le _ ((mkt.truncateMan m threshold).prefM m).toLE none (some w) ↔ _
++  rw [truncateMan_prefM_self]
++  exact truncateOptionOrder_none_le_some _ _ _
++
++/-- An original stable matching that meets the cut is stable after truncation. -/
++theorem stable_truncateMan_of_stable {μ : M ≃. W} {m : M} {threshold current : W}
++    (hμ : mkt.IsStableMatching μ) (hcurrent : μ m = some current)
++    (hthreshold : mkt.leM m (some threshold) (some current)) :
++    (mkt.truncateMan m threshold).IsStableMatching μ := by
++  refine ⟨⟨?_, ?_⟩, ?_⟩
++  · intro m'
++    by_cases hm : m' = m
++    · subst m'
++      change (mkt.truncateMan m threshold).leM m none (μ m)
++      rw [hcurrent]
++      exact (truncateMan_none_le_some mkt m threshold current).mpr hthreshold
++    · exact (truncateMan_leM_of_ne mkt m m' threshold hm _ _).mpr
++        (hμ.1.1 m')
++  · intro w
++    exact hμ.1.2 w
++  · apply ((mkt.truncateMan m threshold).unblocked_iff_no_blockingPair μ).mpr
++    intro m' w hb
++    apply hμ.2.1 m' w
++    refine ⟨?_, hb.2⟩
++    by_cases hm : m' = m
++    · subst m'
++      have h : (mkt.truncateMan m threshold).ltM m (μ m) (some w) := hb.1
++      rw [hcurrent] at h
++      change mkt.ltM m (μ m) (some w)
++      rw [hcurrent]
++      exact (truncateMan_ltM_some_some mkt m m threshold current w).mp h
++    · exact (truncateMan_ltM_of_ne mkt m m' threshold hm _ _).mp hb.1
++
++/-- Once the truncated man is matched, no removed pair can create a new block. -/
++theorem stable_of_stable_truncateMan {μ : M ≃. W} {m : M} {threshold current : W}
++    (hacceptable : mkt.leM m none (some threshold))
++    (hμ : (mkt.truncateMan m threshold).IsStableMatching μ)
++    (hcurrent : μ m = some current) : mkt.IsStableMatching μ := by
++  have hthreshold : mkt.leM m (some threshold) (some current) := by
++    apply (truncateMan_none_le_some mkt m threshold current).mp
++    have hir : (mkt.truncateMan m threshold).leM m none (μ m) := hμ.1.1 m
++    rw [hcurrent] at hir
++    exact hir
++  refine ⟨⟨?_, ?_⟩, ?_⟩
++  · intro m'
++    by_cases hm : m' = m
++    · subst m'
++      let := mkt.prefM m
++      change none ≤ μ m
++      rw [hcurrent]
++      exact hacceptable.trans hthreshold
++    · exact (truncateMan_leM_of_ne mkt m m' threshold hm _ _).mp
++        (hμ.1.1 m')
++  · intro w
++    exact hμ.1.2 w
++  · apply (mkt.unblocked_iff_no_blockingPair μ).mpr
++    intro m' w hb
++    apply hμ.2.1 m' w
++    refine ⟨?_, hb.2⟩
++    by_cases hm : m' = m
++    · subst m'
++      have h : mkt.ltM m (μ m) (some w) := hb.1
++      rw [hcurrent] at h
++      change (mkt.truncateMan m threshold).ltM m (μ m) (some w)
++      rw [hcurrent]
++      exact (truncateMan_ltM_some_some mkt m m threshold current w).mpr h
++    · exact (truncateMan_ltM_of_ne mkt m m' threshold hm _ _).mpr hb.1
++
++end MathEconLib.Matching.MarriageMarket

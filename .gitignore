@@ -1,0 +1,7 @@
+# Lake and Lean build products
+**/.lake/
+external/
+**/*.olean
+**/*.ilean
+**/*.c.o
+**/__pycache__/

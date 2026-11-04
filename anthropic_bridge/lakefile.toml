@@ -1,0 +1,1022 @@
+name = "anthropic_bridge"
+version = "0.1.0"
+packagesDir = "../stable_matching/.lake/packages"
+defaultTargets = ["Solution"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+pp.unicode.fun = true
+exponentiation.threshold = 2048
+
+[[require]]
+name = "matheconlib"
+path = "../external/matheconlib"
+
+# Trusted: the one file to read: the definitions and the two propositions. It imports Mathlib alone.
+[[lean_lib]]
+name = "MainResults"
+
+# Untrusted: the two theorems, proved from the libraries below.
+[[lean_lib]]
+name = "Solution"
+srcDir = "../external/formal-math/eth"
+
+# Untrusted: one entry for each numbered statement of the paper, pointing to its Lean counterpart, followed by entries for the steps of its proof.
+[[lean_lib]]
+name = "PaperIndex"
+srcDir = "../external/formal-math/eth/proof"
+
+# Untrusted: definitions and propositions only, with narrow imports.
+[[lean_lib]]
+name = "statements"
+srcDir = "../external/formal-math/eth/proof/statements"
+globs = [
+  "NetworkStatements",
+  "StepMachineStatements",
+  "ThreeSatStatement",
+  "KSatStatement",
+  "CountKSatStatement",
+  "ThreeSatRateStatement",
+  "ClauseBoundStatement",
+  "FixedWidthVariableBoundStatement",
+  "UniformInKStatement",
+  "MainTheoremFormsStatement",
+  "PaperSentencesStatement",
+  "ThmEveryDeltaStatement",
+  "EightSquareStatement",
+  "ParityChecksStatement",
+  "LevelsStatement",
+  "PiecesStatement",
+  "PartitionStatement",
+  "AppRunningTimeStatement",
+  "AppVariablesStatement",
+  "CircuitLowerBoundStatement",
+  "CircuitLowerBoundInfinitelyOftenStatement",
+  "GraphProblemsStatement",
+  "ClausesOccurStatement",
+  "CliqueLevelsStatement",
+  "KSatFreeCodeStatement",
+  "PiecesCountedStatement",
+  "PrintedStatement",
+  "GivenStatement",
+  "VariablesFixedWidthStatement",
+  "PiecesFromEightSquaresStatement",
+  "CountedInstanceStatement",
+]
+
+# Untrusted: the model of computation: machines cut into steps, Turing machines, machines with query access.
+[[lean_lib]]
+name = "machines"
+srcDir = "../external/formal-math/eth/proof/machines"
+globs = [
+  "StepMachines.Math.Code",
+  "StepMachines.Math.CodeMore",
+  "StepMachines.Math.CodeSeq",
+  "StepMachines.Math.CutWord",
+  "StepMachines.Math.Digits",
+  "StepMachines.Math.Formula",
+  "StepMachines.Math.GridArith",
+  "StepMachines.Math.Pull",
+  "StepMachines.Math.RebalanceArith",
+  "StepMachines.Math.SatArith",
+  "StepMachines.Math.SatNet",
+  "StepMachines.Math.SideCodes",
+  "StepMachines.Math.SideNet",
+  "StepMachines.Math.SideX",
+  "StepMachines.Math.Sparse",
+  "StepMachines.Math.Sparsify",
+  "StepMachines.Math.SparsifyCount",
+  "StepMachines.Math.SparsifyList",
+  "StepMachines.Math.SparsifyProg",
+  "StepMachines.Math.SparsifyStep",
+  "StepMachines.Math.SparsifyTree",
+  "StepMachines.Prog.Brute",
+  "StepMachines.Prog.BruteE",
+  "StepMachines.Prog.Chunks",
+  "StepMachines.Prog.Comb",
+  "StepMachines.Prog.Count",
+  "StepMachines.Prog.CountNet",
+  "StepMachines.Prog.CutProg",
+  "StepMachines.Prog.GridCount",
+  "StepMachines.Prog.GridDefs",
+  "StepMachines.Prog.NetProg",
+  "StepMachines.Prog.NetRun",
+  "StepMachines.Prog.NetVal",
+  "StepMachines.Prog.Range",
+  "StepMachines.Prog.Sat",
+  "StepMachines.Prog.Side",
+  "StepMachines.Prog.SideBasics",
+  "StepMachines.Prog.SidePresents",
+  "StepMachines.Prog.Spec",
+  "StepMachines.Prog.Stepped",
+  "StepMachines.Prog.Walk",
+  "ToTuring.Bound",
+  "ToTuring.Closure.Basic",
+  "ToTuring.Closure.Cases",
+  "ToTuring.Closure.Fold",
+  "ToTuring.Enc",
+  "ToTuring.EncLemmas",
+  "ToTuring.EndLemmas",
+  "ToTuring.Lib.Bool",
+  "ToTuring.Lib.Int",
+  "ToTuring.Lib.List2",
+  "ToTuring.Lib.Nat2",
+  "ToTuring.Lib.Table",
+  "ToTuring.Lib.Unary",
+  "ToTuring.Machine.EndTM",
+  "ToTuring.Machine.Host",
+  "ToTuring.Machine.Lift",
+  "ToTuring.Poly.Basic",
+  "ToTuring.Poly.Brute",
+  "ToTuring.Poly.Comb",
+  "ToTuring.Poly.Count",
+  "ToTuring.Poly.Cut",
+  "ToTuring.Poly.Digits",
+  "ToTuring.Poly.Grid",
+  "ToTuring.Poly.GridSide",
+  "ToTuring.Poly.IsPoly",
+  "ToTuring.Poly.NetFun",
+  "ToTuring.Poly.Range",
+  "ToTuring.Poly.Sparsify",
+  "ToTuring.Poly.Spec",
+  "ToTuring.Poly.Walk",
+  "ToTuring.Poly.Words",
+  "ToTuring.PolyT",
+  "ToTuring.TM.Frag",
+  "ToTuring.TM.Move",
+  "ToTuring.TM.Ops",
+  "ToTuring.TM.Rename",
+  "ToTuring.TM.Run",
+  "ToTuring.TM.Stacks",
+  "ToTuring.TM.Tree",
+  "QueryMachines.+",
+  "Wrap.Arith",
+  "Wrap.ArithRate",
+  "Wrap.Coding",
+  "Wrap.Defs",
+  "Wrap.FrontEnd",
+  "Wrap.Main",
+  "Wrap.Sim",
+  "TwoMachines.+",
+  "Tower.+",
+]
+
+# Untrusted: Sections 3 to 5: networks, the eight-square identity, the value of a network.
+[[lean_lib]]
+name = "networks"
+srcDir = "../external/formal-math/eth/proof/networks"
+globs = [
+  "Groundwork.Cross.Cuts",
+  "Groundwork.Grid.Defs",
+  "Groundwork.Grid.Expand",
+  "Groundwork.Grid.Grid",
+  "Groundwork.Grid.RowNet",
+  "Groundwork.Net.Calculus",
+  "Groundwork.Net.Colouring",
+  "Groundwork.Net.ColouringNet",
+  "Groundwork.Net.Defs",
+  "Groundwork.Net.Net",
+  "Paper.+",
+  "SingleBitPieces.+",
+  "Eight.App_Pieces",
+  "Eight.App_Rate",
+  "Eight.Cor.Defs",
+  "Eight.Cor.ENP",
+  "Eight.Cor.Graph",
+  "Eight.Cor.NSETH",
+  "Eight.Cor.NSETHDefs",
+  "Eight.Cor.Width",
+  "Eight.Cor.WidthDefs",
+  "Eight.Cor.WidthProg",
+  "Eight.Level.Arith",
+  "Eight.Level.Cert",
+  "Eight.Level.Defs",
+  "Eight.Level.End",
+  "Eight.Level.Min",
+  "Eight.Level.Pieces",
+  "Eight.Level.Presents",
+  "Eight.Level.SecPseudocode",
+  "Eight.SecCrossing_Blocks",
+  "Eight.SecCrossing_Chunk",
+  "Eight.SecCrossing_FactDefs",
+  "Eight.SecCrossing_Identity",
+  "Eight.SecCrossing_LemPieces",
+  "Eight.SecCrossing_MulOut",
+  "Eight.SecCrossing_PolyDefs",
+  "Eight.SecLevel_EStar",
+  "Eight.SecLevel_Grid",
+  "Eight.SecLevel_GridDefs",
+  "Eight.SecLevel_GridWords",
+  "Eight.SecNetworks_Clique",
+  "Eight.SecNetworks_Defs",
+  "Eight.SecNetworks_Grouping",
+  "Eight.SecNetworks_LemGrouping",
+  "Eight.SecNetworks_Tables",
+  "Eight.SecProof_Network",
+  "Eight.SecProof_NetworkDefs",
+  "Eight.SecProof_Proof",
+  "Eight.SecPseudocode_Levels",
+  "Eight.ViaGrouping.Alg",
+  "Eight.ViaGrouping.AlgDefs",
+  "Eight.ViaGrouping.Bridge",
+  "Eight.ViaGrouping.CorDefs2",
+  "Eight.ViaGrouping.CorENP",
+  "Eight.ViaGrouping.CorGraph",
+  "Eight.ViaGrouping.CorNSETH",
+  "Eight.ViaGrouping.Count",
+  "Eight.ViaGrouping.Defs",
+  "Eight.ViaGrouping.Display",
+  "Eight.ViaGrouping.GridPsi",
+  "Eight.ViaGrouping.GridPsiDefs",
+  "Eight.ViaGrouping.Keeps",
+  "Eight.ViaGrouping.LemGrouping",
+  "Eight.ViaGrouping.Level",
+  "Eight.ViaGrouping.LevelCert",
+  "Eight.ViaGrouping.LevelDefs",
+  "Eight.ViaGrouping.LevelEnd",
+  "Eight.ViaGrouping.LevelNet",
+  "Eight.ViaGrouping.Main",
+  "Eight.ViaGrouping.SatPsi",
+  "Eight.ViaGrouping.SatPsiDefs",
+  "Eight.ViaGrouping.Search",
+  "Eight.ViaGrouping.Table",
+  "Value.+",
+  "Variance.+",
+  "Coding.+",
+]
+
+# Untrusted: Sections 6 and 8: the algorithm for 3-SAT.
+[[lean_lib]]
+name = "threesat"
+srcDir = "../external/formal-math/eth/proof/threesat"
+globs = [
+  "Exits.+",
+  "Suffices.+",
+  "Enumerate.+",
+  "ThreeSatOnTree.+",
+  "ThreeSatPrinted.+",
+  "Printed.Absorb",
+  "Printed.Achievable",
+  "Printed.Close",
+  "Printed.Coding",
+  "Printed.CodingDefs",
+  "Printed.Count",
+  "Printed.End",
+  "Printed.Grouping",
+  "Printed.GroupingPoly",
+  "Printed.GroupingProcs",
+  "Printed.GroupingRun",
+  "Printed.HandOver",
+  "Printed.LevelCost",
+  "Printed.LevelFrom",
+  "Printed.LevelNetworks",
+  "Printed.LevelPoly",
+  "Printed.LevelSentences",
+  "Printed.Programs",
+  "Printed.Proof",
+  "Given.+",
+]
+
+# Untrusted: Section 7: the consequences.
+[[lean_lib]]
+name = "consequences"
+srcDir = "../external/formal-math/eth/proof/consequences"
+globs = [
+  "WidthK.Decode",
+  "WidthK.Top.EndLemmas",
+  "WidthK.Top.Poly",
+  "WidthK.Top.Sat",
+  "CountKSat.+",
+  "CountKSatRate.+",
+  "GraphProblems.+",
+  "CircuitLowerBound.+",
+  "Occ.+",
+  "SplitCount.+",
+  "SplitSat.+",
+  "FreeCode.+",
+  "SizeCircuit.+",
+  "Complement.+",
+  "Sat3Graph.+",
+  "ThmCount.+",
+  "Consequences.+",
+  "FromPrinted.+",
+  "PrintedOrder.+",
+]
+
+# Untrusted: the sparsification lemma and Appendix C.
+[[lean_lib]]
+name = "sparsification"
+srcDir = "../external/formal-math/eth/proof/sparsification"
+globs = [
+  "SparsifyWidthK.+",
+  "SparsificationLemma.+",
+  "UniformInK.+",
+  "StepSparsify.+",
+]
+
+# Untrusted: Appendices A and B: the bound in the number of clauses.
+[[lean_lib]]
+name = "rates"
+srcDir = "../external/formal-math/eth/proof/rates"
+globs = [
+  "PaddedDescent.BrutePad",
+  "PaddedDescent.Choice",
+  "PaddedDescent.Col.CertG",
+  "PaddedDescent.Col.Good",
+  "PaddedDescent.F.ArithA",
+  "PaddedDescent.F.ArithCol",
+  "PaddedDescent.F.ArithFits",
+  "PaddedDescent.F.ArithGlob",
+  "PaddedDescent.F.ArithInv",
+  "PaddedDescent.F.ArithLevel",
+  "PaddedDescent.F.ArithMark",
+  "PaddedDescent.F.ArithSched",
+  "PaddedDescent.F.ArithStack",
+  "PaddedDescent.F.ArithTop",
+  "PaddedDescent.F.ArithTopInv",
+  "PaddedDescent.F.ArithWalk",
+  "PaddedDescent.F.CertA",
+  "PaddedDescent.F.CertEval",
+  "PaddedDescent.F.CertGrid",
+  "PaddedDescent.F.CertMark",
+  "PaddedDescent.F.CertNet",
+  "PaddedDescent.F.CertSide",
+  "PaddedDescent.F.CertSparsify",
+  "PaddedDescent.F.CertTop",
+  "PaddedDescent.F.Data",
+  "PaddedDescent.F.Descend",
+  "PaddedDescent.F.Eval",
+  "PaddedDescent.F.Expand",
+  "PaddedDescent.F.Fuel",
+  "PaddedDescent.F.FuelCert",
+  "PaddedDescent.F.Interfaces",
+  "PaddedDescent.F.LenList",
+  "PaddedDescent.F.MarkCode",
+  "PaddedDescent.F.MarkDeg",
+  "PaddedDescent.F.MarkLayers",
+  "PaddedDescent.F.MarkMath",
+  "PaddedDescent.F.MarkNet",
+  "PaddedDescent.F.MarkProf",
+  "PaddedDescent.F.MarkSum",
+  "PaddedDescent.F.MarkSums",
+  "PaddedDescent.F.MarkVal",
+  "PaddedDescent.F.NSat",
+  "PaddedDescent.F.Price",
+  "PaddedDescent.F.Prog",
+  "PaddedDescent.F.RebalF",
+  "PaddedDescent.F.RebalG",
+  "PaddedDescent.F.SideF",
+  "PaddedDescent.F.Table",
+  "PaddedDescent.F.Top",
+  "PaddedDescent.Host",
+  "PaddedDescent.Main",
+  "PaddedDescent.Pad",
+  "PaddedDescent.PadRate",
+  "PaddedDescent.Params",
+  "PaddedDescent.RateLemmas",
+  "PaddedDescent.Reduce",
+  "PaddedDescent.Seq",
+  "PaddedDescent.Threshold",
+  "ClauseBound.Alg.CertCount",
+  "ClauseBound.Alg.CertEnum",
+  "ClauseBound.Alg.CertGridG",
+  "ClauseBound.Alg.CertTop",
+  "ClauseBound.Alg.CertTopNet",
+  "ClauseBound.Alg.Data",
+  "ClauseBound.Alg.Descend",
+  "ClauseBound.Alg.End",
+  "ClauseBound.Alg.Enum",
+  "ClauseBound.Alg.Grid",
+  "ClauseBound.Alg.GridNet",
+  "ClauseBound.Alg.GridPresents",
+  "ClauseBound.Alg.Interfaces",
+  "ClauseBound.Alg.Need",
+  "ClauseBound.Alg.NeedC",
+  "ClauseBound.Alg.Prog",
+  "ClauseBound.Alg.Top",
+  "ClauseBound.Alg.TopArith",
+  "ClauseBound.Alg.TopNet",
+  "ClauseBound.Alg.TopVal",
+  "ClauseBound.Boson.Basic",
+  "ClauseBound.Boson.Defs",
+  "ClauseBound.Boson.Defs2",
+  "ClauseBound.Boson.Dual",
+  "ClauseBound.Boson.Final",
+  "ClauseBound.Boson.Half",
+  "ClauseBound.Boson.HalfList",
+  "ClauseBound.Boson.HalfSum",
+  "ClauseBound.Boson.KF",
+  "ClauseBound.Boson.Scalars",
+  "ClauseBound.Boson.Size",
+  "ClauseBound.Boson.Text",
+  "ClauseBound.Boson.WickPlus",
+  "ClauseBound.Both.Defs",
+  "ClauseBound.Both.End",
+  "ClauseBound.Both.TimeM",
+  "ClauseBound.Gen.Chain",
+  "ClauseBound.Gen.Defs",
+  "ClauseBound.Gen.End",
+  "ClauseBound.Gen.PartA",
+  "ClauseBound.Gen.Pick",
+  "ClauseBound.Gen.Rate",
+  "ClauseBound.Gen.RateAux",
+  "ClauseBound.Gen.Seq",
+  "ClauseBound.Grid.Expand",
+  "ClauseBound.Group.Grouping",
+  "ClauseBound.Group.Sample",
+  "ClauseBound.Inst.CertHalf",
+  "ClauseBound.Inst.CertHalfSmall",
+  "ClauseBound.Inst.Half",
+  "ClauseBound.Inst.HalfAll",
+  "ClauseBound.Inst.HalfEnc",
+  "ClauseBound.Inst.HalfEnd",
+  "ClauseBound.Inst.HalfFact",
+  "ClauseBound.Inst.HalfIfc",
+  "ClauseBound.Inst.HalfLabs",
+  "ClauseBound.Inst.HalfPad",
+  "ClauseBound.Inst.HalfPar",
+  "ClauseBound.Inst.HalfPart",
+  "ClauseBound.Inst.HalfSpec",
+  "ClauseBound.Inst.HalfTab",
+  "ClauseBound.Inst.HalfTabBot",
+  "ClauseBound.Inst.HalfTabKF",
+  "ClauseBound.Inst.HalfTabSpec",
+  "ClauseBound.Inst.HalfVal",
+  "ClauseBound.Inst.RecArith",
+  "ClauseBound.MainBoth",
+  "ClauseBound.ParityChecks.ArithAux",
+  "ClauseBound.ParityChecks.ArithOL",
+  "ClauseBound.ParityChecks.Binom",
+  "ClauseBound.ParityChecks.Bridge",
+  "ClauseBound.ParityChecks.BridgeInc",
+  "ClauseBound.ParityChecks.BudgetOL",
+  "ClauseBound.ParityChecks.CertLib",
+  "ClauseBound.ParityChecks.CertNum",
+  "ClauseBound.ParityChecks.CertOL",
+  "ClauseBound.ParityChecks.CertPar",
+  "ClauseBound.ParityChecks.CertTopOL",
+  "ClauseBound.ParityChecks.ChoiceByPotential",
+  "ClauseBound.ParityChecks.Congr",
+  "ClauseBound.ParityChecks.Count",
+  "ClauseBound.ParityChecks.Dummy",
+  "ClauseBound.ParityChecks.EndOL",
+  "ClauseBound.ParityChecks.Ev",
+  "ClauseBound.ParityChecks.Martingale",
+  "ClauseBound.ParityChecks.MasterOL",
+  "ClauseBound.ParityChecks.NetDefs",
+  "ClauseBound.ParityChecks.Num",
+  "ClauseBound.ParityChecks.Params",
+  "ClauseBound.ParityChecks.ProgDefs",
+  "ClauseBound.ParityChecks.Run",
+  "ClauseBound.ParityChecks.RunDefs",
+  "ClauseBound.ParityChecks.RunF",
+  "ClauseBound.ParityChecks.Shape",
+  "ClauseBound.ParityChecks.Sizes",
+  "ClauseBound.ParityChecks.Start",
+  "ClauseBound.ParityChecks.StepOne",
+  "ClauseBound.ParityChecks.Structure",
+  "ClauseBound.ParityChecks.TopDefs",
+  "ClauseBound.ParityChecks.TopOL",
+  "ClauseBound.Part.Bits",
+  "ClauseBound.Part.Bounds",
+  "ClauseBound.Part.ListP",
+  "ClauseBound.Part.Rec",
+  "ClauseBound.Part.Upper",
+  "ClauseBound.Rec.Blocks",
+  "ClauseBound.Rec.CountRow",
+  "ClauseBound.Rec.Defs",
+  "ClauseBound.Rec.Few",
+  "ClauseBound.Rec.Number",
+  "ClauseBound.Rec.Tail",
+  "ClauseBound.Rec.Window",
+  "ClauseBound.TopN.Arith",
+  "ClauseBound.TopN.ArithR",
+  "ClauseBound.TopN.Budget",
+  "ClauseBound.TopN.Cert",
+  "ClauseBound.TopN.Defs",
+  "ClauseBound.TopN.End",
+  "ClauseBound.TopN.EvalW",
+  "ClauseBound.TopN.Gen",
+  "ClauseBound.TopN.Walk",
+  "GeneralPieces.DefGenPieces.Conv",
+  "GeneralPieces.DefGenPieces.Progs",
+  "GeneralPieces.DefGenPieces.ToPure",
+  "GeneralPieces.Defs",
+  "GeneralPieces.GenF.Assemble",
+  "GeneralPieces.GenF.Commute",
+  "GeneralPieces.GenF.DDComm",
+  "GeneralPieces.GenF.Defs",
+  "GeneralPieces.GenF.Exp",
+  "GeneralPieces.GenF.Hahn",
+  "GeneralPieces.GenF.Kappa",
+  "GeneralPieces.GenF.Main",
+  "GeneralPieces.GenF.Products",
+  "GeneralPieces.GenF.Taylor",
+  "GeneralPieces.GenF.YMain",
+  "GeneralPieces.Group.Calls",
+  "GeneralPieces.Group.CaseI",
+  "GeneralPieces.Group.CaseII",
+  "GeneralPieces.Half.Consts",
+  "GeneralPieces.Half.Main",
+  "GeneralPieces.Half.Order",
+  "GeneralPieces.Half.Size",
+  "GeneralPieces.Half.Spec",
+  "GeneralPieces.Main",
+  "GeneralPieces.Num.Asymptotic",
+  "GeneralPieces.Num.Between",
+  "GeneralPieces.Num.PartA",
+  "GeneralPieces.Num.PartAUse",
+  "GeneralPieces.Num.PartD",
+  "GeneralPieces.Num.Remarks",
+  "GeneralPieces.Num.TopDisplay",
+  "GeneralPieces.Rec.Chain",
+  "GeneralPieces.Rec.Count",
+  "GeneralPieces.Rec.Descend",
+  "GeneralPieces.Rec.Level",
+  "GeneralPieces.Rec.PartB",
+  "GeneralPieces.Rec.Rate",
+  "GeneralPieces.Rec.Seq",
+  "GeneralPieces.Ring.Bits",
+  "GeneralPieces.Ring.Bridge",
+  "GeneralPieces.Ring.Defs",
+  "GeneralPieces.Ring.Dual",
+  "GeneralPieces.Ring.Lex",
+  "GeneralPieces.Ring.ThmHalfPieces",
+  "GeneralPieces.Series.Constant",
+  "GeneralPieces.Series.Deriv",
+  "GeneralPieces.Series.Expansion",
+  "GeneralPieces.Series.LemmaQ",
+  "GeneralPieces.Series.OneLaurent",
+  "GeneralPieces.Series.ReadOff",
+  "GeneralPieces.Series.Rings",
+  "GeneralPieces.ThmRunningTime",
+  "GeneralPieces.Tied.Bound",
+  "GeneralPieces.Tied.BoundDefs",
+  "GeneralPieces.Tied.Defs",
+  "GeneralPieces.Top.CaseI",
+  "GeneralPieces.Top.EndM",
+  "GeneralPieces.Trim.Cert",
+  "GeneralPieces.Trim.Prog",
+  "OccurM.+",
+  "PiecesCounted.Assume",
+  "PiecesCounted.Basic",
+  "PiecesCounted.EightSquare",
+  "PiecesCounted.Half",
+  "PiecesCounted.Oracle",
+  "PiecesCounted.PadThen",
+  "PiecesCounted.Padded",
+  "PiecesCounted.PaddedData",
+  "PiecesCounted.Sizes",
+  "ExplicitCost.Cost",
+  "ExplicitCost.EntryDefs",
+  "ExplicitCost.GroupingDefs",
+  "ExplicitCost.GroupingLemma",
+  "ExplicitCost.GroupingNumbers",
+  "ExplicitCost.GroupingPoly",
+  "ExplicitCost.GroupingSearch",
+  "ExplicitCost.Mirror",
+  "ExplicitCost.Poly",
+  "CountedToPadded.+",
+  "PiecesFromEightSquares.+",
+  "CountedRecursion.Answers",
+  "CountedRecursion.AnswersDefs",
+  "CountedRecursion.Base",
+  "CountedRecursion.BothNetworks",
+  "CountedRecursion.Brute",
+  "CountedRecursion.CallFacts",
+  "CountedRecursion.CallLemma",
+  "CountedRecursion.CallParts",
+  "CountedRecursion.CaseTwo",
+  "CountedRecursion.Chain",
+  "CountedRecursion.ChainLabel",
+  "CountedRecursion.ChildIsGood",
+  "CountedRecursion.CountBase",
+  "CountedRecursion.CountStep",
+  "CountedRecursion.CrudeBounds",
+  "CountedRecursion.EndBounds",
+  "CountedRecursion.EndCounted",
+  "CountedRecursion.EndPlugged",
+  "CountedRecursion.EndSolves",
+  "CountedRecursion.Expansion",
+  "CountedRecursion.GridLemmas",
+  "CountedRecursion.GridProcedures",
+  "CountedRecursion.LabelCrude",
+  "CountedRecursion.LevelBound",
+  "CountedRecursion.LevelNumbers",
+  "CountedRecursion.Main",
+  "CountedRecursion.Meets",
+  "CountedRecursion.Numbers",
+  "CountedRecursion.ParentNumbers",
+  "CountedRecursion.ParentSize",
+  "CountedRecursion.PartAPrinted",
+  "CountedRecursion.PatternPsi",
+  "CountedRecursion.PatternValues",
+  "CountedRecursion.PolyAll",
+  "CountedRecursion.PolyEnd",
+  "CountedRecursion.PolyLists",
+  "CountedRecursion.PolyProcedure",
+  "CountedRecursion.PolyQueries",
+  "CountedRecursion.PolyRules",
+  "CountedRecursion.PolySolver",
+  "CountedRecursion.PolySolverData",
+  "CountedRecursion.ProcedureCost",
+  "CountedRecursion.RecursionDefs",
+  "CountedRecursion.RoomWithin",
+  "CountedRecursion.RowFactorRun",
+  "CountedRecursion.RowPairRun",
+  "CountedRecursion.RowWeightRun",
+  "CountedRecursion.SolverCall",
+  "CountedRecursion.SolverDefs",
+  "CountedRecursion.SolverPattern",
+  "CountedRecursion.SolverRoom",
+  "CountedRecursion.SolverStages",
+  "CountedRecursion.SolverStep",
+  "CountedRecursion.SquareGrid",
+  "CountedRecursion.TotalCount",
+  "CountedRecursion.TotalRoom",
+  "CountedRecursion.Totals",
+  "CountedRecursion.Within",
+]
+
+# Untrusted: Appendix D: the bound in the number of variables.
+[[lean_lib]]
+name = "variables"
+srcDir = "../external/formal-math/eth/proof/variables"
+globs = [
+  "VariableBound.Cert.Top",
+  "VariableBound.Count.Cert",
+  "VariableBound.Count.Correct",
+  "VariableBound.Count.Defs",
+  "VariableBound.Family.Main",
+  "VariableBound.Family.Pairwise",
+  "VariableBound.Family.SmallBias",
+  "VariableBound.Field.Alg",
+  "VariableBound.Field.Defs",
+  "VariableBound.Field.Family",
+  "VariableBound.Field.Main",
+  "VariableBound.Field.Quot",
+  "VariableBound.Field.Ring",
+  "VariableBound.Field.Search",
+  "VariableBound.Field.Transfer",
+  "VariableBound.MainPrinted",
+  "VariableBound.Net.Basic",
+  "VariableBound.Net.CertEv",
+  "VariableBound.Net.CertNet",
+  "VariableBound.Net.CertRank",
+  "VariableBound.Net.Defs",
+  "VariableBound.Net.Ev",
+  "VariableBound.Net.Fit",
+  "VariableBound.Net.Main",
+  "VariableBound.Net.Prof",
+  "VariableBound.Net.Rank",
+  "VariableBound.Net.SizeB",
+  "VariableBound.Net.SizeSmall",
+  "VariableBound.Net.SizeU",
+  "VariableBound.Net.StepCost",
+  "VariableBound.Net.Total",
+  "VariableBound.Net.Tuples",
+  "VariableBound.Net.Val",
+  "VariableBound.Paper.Arith",
+  "VariableBound.Paper.Decide",
+  "VariableBound.Paper.Forms",
+  "VariableBound.Paper.MainTheorem",
+  "VariableBound.Paper.Rename.Cert",
+  "VariableBound.Paper.Rename.Code",
+  "VariableBound.Paper.Rename.Compact",
+  "VariableBound.Paper.Rename.Defs",
+  "VariableBound.Paper.Rename.End",
+  "VariableBound.Paper.Rename.Math",
+  "VariableBound.Paper.Rename.Time",
+  "VariableBound.Params.Cert",
+  "VariableBound.Params.Defs",
+  "VariableBound.Params.Ineq",
+  "VariableBound.Params.Spec",
+  "VariableBound.Printed.ThmVariablesA",
+  "VariableBound.Printed.ThmVariablesADefs",
+  "VariableBound.Printed.Tied",
+  "VariableBound.Printed.TiedDefs",
+  "VariableBound.Printed.VariablesA.Arith",
+  "VariableBound.Printed.VariablesA.Level",
+  "VariableBound.Printed.VariablesA.Main",
+  "VariableBound.Printed.VariablesA.Setting",
+  "VariableBound.Printed.VariablesA.StepSparsify",
+  "VariableBound.Search.Correct",
+  "VariableBound.Search.Defs",
+  "VariableBound.StepChoice",
+  "VariableBound.Top.Arith",
+  "VariableBound.Top.ArithDefs",
+  "VariableBound.Top.ArithNat",
+  "VariableBound.Top.ArithNeed",
+  "VariableBound.Top.ArithPlan",
+  "VariableBound.Top.ArithTop",
+  "VariableBound.Top.Budget",
+  "VariableBound.Top.Correct",
+  "VariableBound.Top.CorrectB",
+  "VariableBound.Top.Defs",
+  "VariableBound.Top.Time",
+  "SparsifyThenCount.+",
+  "RecursionWithPieces.+",
+  "RecursionToBound.+",
+  "PairsToBound.+",
+  "FixedWidthSteps.+",
+  "CountedInstance.+",
+  "ThmVariables.+",
+]
+
+# Untrusted: the Main Theorem.
+[[lean_lib]]
+name = "maintheorem"
+srcDir = "../external/formal-math/eth/proof/maintheorem"
+globs = [
+  "MinOfBounds.+",
+  "MainRoute.+",
+  "WidthThree.+",
+  "NamesInOrder.+",
+  "CountedRoute.+",
+]
+
+[[lean_lib]]
+name = "compat_AppHalfPiecesStatement"
+srcDir = "overrides"
+globs = ["AppHalfPiecesStatement"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Alg_CertLevel"
+srcDir = "overrides"
+globs = ["ClauseBound.Alg.CertLevel"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Alg_Decode"
+srcDir = "overrides"
+globs = ["ClauseBound.Alg.Decode"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Alg_Level"
+srcDir = "overrides"
+globs = ["ClauseBound.Alg.Level"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Grid_Size"
+srcDir = "overrides"
+globs = ["ClauseBound.Grid.Size"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Inst_CertHalfPart"
+srcDir = "overrides"
+globs = ["ClauseBound.Inst.CertHalfPart"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Inst_CertHalfTab"
+srcDir = "overrides"
+globs = ["ClauseBound.Inst.CertHalfTab"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_ParityChecks_Approx"
+srcDir = "overrides"
+globs = ["ClauseBound.ParityChecks.Approx"]
+
+[[lean_lib]]
+name = "compat_ClauseBound_Part_Lower"
+srcDir = "overrides"
+globs = ["ClauseBound.Part.Lower"]
+
+[[lean_lib]]
+name = "compat_CountedRecursion_CliqueReads"
+srcDir = "overrides"
+globs = ["CountedRecursion.CliqueReads"]
+
+[[lean_lib]]
+name = "compat_CountedRecursion_PatternIs"
+srcDir = "overrides"
+globs = ["CountedRecursion.PatternIs"]
+
+[[lean_lib]]
+name = "compat_Eight_SecCrossing_Cert"
+srcDir = "overrides"
+globs = ["Eight.SecCrossing_Cert"]
+
+[[lean_lib]]
+name = "compat_Eight_SecCrossing_Fact"
+srcDir = "overrides"
+globs = ["Eight.SecCrossing_Fact"]
+
+[[lean_lib]]
+name = "compat_Eight_SecCrossing_PiecesAC"
+srcDir = "overrides"
+globs = ["Eight.SecCrossing_PiecesAC"]
+
+[[lean_lib]]
+name = "compat_ExplicitCost_GroupingCall"
+srcDir = "overrides"
+globs = ["ExplicitCost.GroupingCall"]
+
+[[lean_lib]]
+name = "compat_ExplicitCost_SameRuns"
+srcDir = "overrides"
+globs = ["ExplicitCost.SameRuns"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_DefGenPieces_MayAssume"
+srcDir = "overrides"
+globs = ["GeneralPieces.DefGenPieces.MayAssume"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_Borel"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.Borel"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_Bra"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.Bra"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_Coeff"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.Coeff"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_Normal"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.Normal"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_NormalL"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.NormalL"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_PDeriv"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.PDeriv"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_Y"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.Y"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_Y2"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.Y2"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_GenF_YY"
+srcDir = "overrides"
+globs = ["GeneralPieces.GenF.YY"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Group_Lemma"
+srcDir = "overrides"
+globs = ["GeneralPieces.Group.Lemma"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Half_List"
+srcDir = "overrides"
+globs = ["GeneralPieces.Half.List"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Ring_Basic"
+srcDir = "overrides"
+globs = ["GeneralPieces.Ring.Basic"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Ring_LemmaQ"
+srcDir = "overrides"
+globs = ["GeneralPieces.Ring.LemmaQ"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Ring_Op"
+srcDir = "overrides"
+globs = ["GeneralPieces.Ring.Op"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Ring_OpFacts"
+srcDir = "overrides"
+globs = ["GeneralPieces.Ring.OpFacts"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Ring_Pieces"
+srcDir = "overrides"
+globs = ["GeneralPieces.Ring.Pieces"]
+
+[[lean_lib]]
+name = "compat_GeneralPieces_Ring_Sizes"
+srcDir = "overrides"
+globs = ["GeneralPieces.Ring.Sizes"]
+
+[[lean_lib]]
+name = "compat_Groundwork_Cross_Bit"
+srcDir = "overrides"
+globs = ["Groundwork.Cross.Bit"]
+
+[[lean_lib]]
+name = "compat_Groundwork_Grid_Size"
+srcDir = "overrides"
+globs = ["Groundwork.Grid.Size"]
+
+[[lean_lib]]
+name = "compat_PaddedDescent_Col_Colouring"
+srcDir = "overrides"
+globs = ["PaddedDescent.Col.Colouring"]
+
+[[lean_lib]]
+name = "compat_PaddedDescent_F_MarkPi"
+srcDir = "overrides"
+globs = ["PaddedDescent.F.MarkPi"]
+
+[[lean_lib]]
+name = "compat_PaddedDescent_F_MarkSize"
+srcDir = "overrides"
+globs = ["PaddedDescent.F.MarkSize"]
+
+[[lean_lib]]
+name = "compat_PiecesCounted_Trimmed"
+srcDir = "overrides"
+globs = ["PiecesCounted.Trimmed"]
+
+[[lean_lib]]
+name = "compat_Printed_GroupingEntry"
+srcDir = "overrides"
+globs = ["Printed.GroupingEntry"]
+
+[[lean_lib]]
+name = "compat_StepMachines_Prog_Decode"
+srcDir = "overrides"
+globs = ["StepMachines.Prog.Decode"]
+
+[[lean_lib]]
+name = "compat_StepMachines_Prog_GridLoop"
+srcDir = "overrides"
+globs = ["StepMachines.Prog.GridLoop"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Lib_List1"
+srcDir = "overrides"
+globs = ["ToTuring.Lib.List1"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Lib_List1b"
+srcDir = "overrides"
+globs = ["ToTuring.Lib.List1b"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Lib_List3"
+srcDir = "overrides"
+globs = ["ToTuring.Lib.List3"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Lib_Nat1"
+srcDir = "overrides"
+globs = ["ToTuring.Lib.Nat1"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Lib_Nat1b"
+srcDir = "overrides"
+globs = ["ToTuring.Lib.Nat1b"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Poly_Decode"
+srcDir = "overrides"
+globs = ["ToTuring.Poly.Decode"]
+
+[[lean_lib]]
+name = "compat_ToTuring_Poly_Sat"
+srcDir = "overrides"
+globs = ["ToTuring.Poly.Sat"]
+
+[[lean_lib]]
+name = "compat_VariableBound_Field_Cert"
+srcDir = "overrides"
+globs = ["VariableBound.Field.Cert"]
+
+[[lean_lib]]
+name = "compat_VariableBound_Net_SizeP"
+srcDir = "overrides"
+globs = ["VariableBound.Net.SizeP"]
+
+[[lean_lib]]
+name = "compat_VariableBound_Net_Tests"
+srcDir = "overrides"
+globs = ["VariableBound.Net.Tests"]
+
+[[lean_lib]]
+name = "compat_VariableBound_Search_Cert"
+srcDir = "overrides"
+globs = ["VariableBound.Search.Cert"]
+
+[[lean_lib]]
+name = "compat_VariableBound_StepParity"
+srcDir = "overrides"
+globs = ["VariableBound.StepParity"]
+
+[[lean_lib]]
+name = "compat_WidthK_Poly_Decode"
+srcDir = "overrides"
+globs = ["WidthK.Poly.Decode"]
+
+[[lean_lib]]
+name = "compat_Wrap_CodingExists"
+srcDir = "overrides"
+globs = ["Wrap.CodingExists"]
